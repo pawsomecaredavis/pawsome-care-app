@@ -84,6 +84,11 @@ export function PortalDemo() {
 
   useEffect(() => {
     if (sessionEmail && profile?.role === "admin") {
+      if (typeof window !== "undefined") {
+        window.location.replace("/admin");
+        return;
+      }
+
       router.replace("/admin");
       router.refresh();
     }
@@ -308,6 +313,11 @@ export function PortalDemo() {
             setBookings([]);
             setDailyUpdates([]);
             setDailyUpdatePhotos([]);
+
+            if (typeof window !== "undefined") {
+              window.location.replace("/admin");
+            }
+
             return;
           }
 
@@ -356,6 +366,11 @@ export function PortalDemo() {
             setBookings([]);
             setDailyUpdates([]);
             setDailyUpdatePhotos([]);
+
+            if (typeof window !== "undefined") {
+              window.location.replace("/admin");
+            }
+
             return;
           }
 
