@@ -805,12 +805,6 @@ export function PortalDemo() {
           </div>
         </section>
 
-        {!household && sessionUserId ? (
-          <p className="portal-subcopy" style={{ marginTop: "16px" }}>
-            We looked for a household tied to your signed-in user id: <strong>{sessionUserId}</strong>
-          </p>
-        ) : null}
-
         {portalView === "pets" ? (
           <section className="portal-history" id="pet-profiles">
           <div className="portal-card-topline">
@@ -821,11 +815,19 @@ export function PortalDemo() {
                 your portal home.
               </p>
             </div>
-            <Link className="button button-secondary" href="/portal/pets/new">
-              Add New Pet Profile
-            </Link>
+            {household ? (
+              <Link className="button button-secondary" href="/portal/pets/new">
+                Add New Pet Profile
+              </Link>
+            ) : null}
           </div>
-          {pets.length === 0 ? (
+          {!household ? (
+            <p className="section-copy">
+              We could not find pet profiles linked to this account yet. If you already had pet
+              profiles before, you are probably signed into a different portal account than the
+              one they were originally created under.
+            </p>
+          ) : pets.length === 0 ? (
             <p className="section-copy">
               No pet profiles yet. Use the button above to create your first one.
             </p>
@@ -1009,37 +1011,45 @@ export function PortalDemo() {
               </p>
             </div>
           </div>
-          <form onSubmit={handleUpdateMyContact}>
-            <div className="field-grid auth-grid">
-              <div className="field field-full">
-                <label htmlFor="contactEmail">Contact Email</label>
-                <input
-                  type="email"
-                  id="contactEmail"
-                  name="contactEmail"
-                  defaultValue={household?.contact_email || sessionEmail}
-                  placeholder="client@email.com"
-                />
+          {!household ? (
+            <p className="section-copy">
+              We could not find a household record linked to this account yet, so there are no
+              contact details to edit here.
+            </p>
+          ) : null}
+          {household ? (
+            <form onSubmit={handleUpdateMyContact}>
+              <div className="field-grid auth-grid">
+                <div className="field field-full">
+                  <label htmlFor="contactEmail">Contact Email</label>
+                  <input
+                    type="email"
+                    id="contactEmail"
+                    name="contactEmail"
+                    defaultValue={household.contact_email || sessionEmail}
+                    placeholder="client@email.com"
+                  />
+                </div>
+                <div className="field field-full">
+                  <label htmlFor="contactPhone">Mobile Phone</label>
+                  <input
+                    type="tel"
+                    id="contactPhone"
+                    name="contactPhone"
+                    defaultValue={household.contact_phone || ""}
+                    placeholder="(530) 555-1234"
+                  />
+                </div>
               </div>
-              <div className="field field-full">
-                <label htmlFor="contactPhone">Mobile Phone</label>
-                <input
-                  type="tel"
-                  id="contactPhone"
-                  name="contactPhone"
-                  defaultValue={household?.contact_phone || ""}
-                  placeholder="(530) 555-1234"
-                />
-              </div>
-            </div>
-            <button
-              className="submit-button"
-              type="submit"
-              disabled={isSavingHousehold || !household}
-            >
-              {isSavingHousehold ? "Saving details..." : "Save Contact Details"}
-            </button>
-          </form>
+              <button
+                className="submit-button"
+                type="submit"
+                disabled={isSavingHousehold}
+              >
+                {isSavingHousehold ? "Saving details..." : "Save Contact Details"}
+              </button>
+            </form>
+          ) : null}
           </section>
         ) : null}
 
