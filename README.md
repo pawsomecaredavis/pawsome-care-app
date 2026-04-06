@@ -72,3 +72,4 @@ Check these flows on the deployed URL:
 
 - Pet photos and daily update photos are compressed in the browser before upload.
 - Uploaded images are currently stored in Supabase Storage.
+- Vercel deploys the latest pushed commit from the connected GitHub repository.
