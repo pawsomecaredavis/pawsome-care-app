@@ -651,7 +651,7 @@ export function PortalDemo() {
               </p>
               <span className="portal-action-link">Request Booking</span>
             </Link>
-            <article className="portal-action-card">
+            <a className="portal-action-card" href="#daily-updates">
               <span className="portal-action-kicker">Step 3</span>
               <strong>Check Booking Updates</strong>
               <p>
@@ -662,7 +662,7 @@ export function PortalDemo() {
                   ? `${dailyUpdates.length} update${dailyUpdates.length === 1 ? "" : "s"} available`
                   : "Updates will appear here"}
               </span>
-            </article>
+            </a>
           </div>
         </section>
 
@@ -951,7 +951,7 @@ export function PortalDemo() {
           )}
         </section>
 
-        <section className="portal-history">
+        <section className="portal-history" id="daily-updates">
           <h3>Daily Updates</h3>
           {dailyUpdates.length === 0 ? (
             <p className="section-copy">
