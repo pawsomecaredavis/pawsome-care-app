@@ -104,12 +104,6 @@ export function PortalDemo() {
   }
 
   useEffect(() => {
-    if (sessionEmail && profile?.role === "admin") {
-      router.push("/admin");
-    }
-  }, [profile, router, sessionEmail]);
-
-  useEffect(() => {
     async function loadProfile(userId: string) {
       const rpcResult = await supabase.rpc("get_my_profile");
 
@@ -123,11 +117,12 @@ export function PortalDemo() {
         if (fallbackResult.error) {
           setErrorMessage(fallbackResult.error.message);
           setProfile(null);
-          return;
+          return null;
         }
 
-        setProfile((fallbackResult.data as Profile | null) ?? null);
-        return;
+        const fallbackProfile = (fallbackResult.data as Profile | null) ?? null;
+        setProfile(fallbackProfile);
+        return fallbackProfile;
       }
 
       const profileRow = Array.isArray(rpcResult.data)
@@ -135,8 +130,9 @@ export function PortalDemo() {
         : rpcResult.data;
 
       if (profileRow) {
-        setProfile(profileRow as Profile);
-        return;
+        const currentProfile = profileRow as Profile;
+        setProfile(currentProfile);
+        return currentProfile;
       }
 
       const fallbackResult = await supabase
@@ -148,10 +144,12 @@ export function PortalDemo() {
       if (fallbackResult.error) {
         setErrorMessage(fallbackResult.error.message);
         setProfile(null);
-        return;
+        return null;
       }
 
-      setProfile((fallbackResult.data as Profile | null) ?? null);
+      const fallbackProfile = (fallbackResult.data as Profile | null) ?? null;
+      setProfile(fallbackProfile);
+      return fallbackProfile;
     }
 
     async function loadPortalData(userId: string) {
@@ -302,7 +300,17 @@ export function PortalDemo() {
         setSessionUserId(user?.id ?? "");
 
         if (user?.id) {
-          await loadProfile(user.id);
+          const currentProfile = await loadProfile(user.id);
+
+          if (currentProfile?.role === "admin") {
+            setHousehold(null);
+            setPets([]);
+            setBookings([]);
+            setDailyUpdates([]);
+            setDailyUpdatePhotos([]);
+            return;
+          }
+
           await loadPortalData(user.id);
         } else {
           setProfile(null);
@@ -340,7 +348,17 @@ export function PortalDemo() {
         setSessionUserId(session?.user.id ?? "");
 
         if (session?.user.id) {
-          await loadProfile(session.user.id);
+          const currentProfile = await loadProfile(session.user.id);
+
+          if (currentProfile?.role === "admin") {
+            setHousehold(null);
+            setPets([]);
+            setBookings([]);
+            setDailyUpdates([]);
+            setDailyUpdatePhotos([]);
+            return;
+          }
+
           await loadPortalData(session.user.id);
         } else {
           setProfile(null);
