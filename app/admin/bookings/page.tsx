@@ -281,9 +281,9 @@ export default function AdminBookingsPage() {
                               ) : null}
                               <Link
                                 className="button button-secondary"
-                                href={`/admin/clients/${booking.household_id}`}
+                                href={`/admin/clients/${booking.household_id}?bookingId=${booking.id}#selected-stay-detail`}
                               >
-                                Open Client Booking Workspace
+                                Open Stay Detail
                               </Link>
                             </div>
                           </article>

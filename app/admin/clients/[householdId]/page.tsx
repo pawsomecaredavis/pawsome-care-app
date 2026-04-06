@@ -468,6 +468,165 @@ export default function AdminClientProfilePage({
     });
   }
 
+  function renderDailyUpdateCard(update: DailyUpdate) {
+    return (
+      <article
+        className="admin-list-item"
+        key={update.id}
+        style={{
+          border: "1px solid #eedcca",
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,243,235,0.98) 100%)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "12px",
+            alignItems: "flex-start",
+            marginBottom: "12px",
+          }}
+        >
+          <div>
+            <strong style={{ display: "block", marginBottom: "6px" }}>
+              {update.pet_name || "Pet Update"}
+            </strong>
+            <p style={{ margin: 0 }}>{update.booking_label || "Booking update"}</p>
+          </div>
+          <span
+            style={{
+              fontSize: "0.9rem",
+              color: "#7b6b5f",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {formatUpdateDate(update.created_at)}
+          </span>
+        </div>
+        {editingUpdateId === update.id ? (
+          <form onSubmit={(event) => void handleEditDailyUpdate(event, update)}>
+            <div className="field field-full" style={{ marginBottom: "14px" }}>
+              <label htmlFor={`editUpdateMessage-${update.id}`}>Message</label>
+              <textarea
+                id={`editUpdateMessage-${update.id}`}
+                name="editUpdateMessage"
+                rows={5}
+                defaultValue={update.message}
+              />
+            </div>
+            <div className="field field-full">
+              <label htmlFor={`editUpdatePhotos-${update.id}`}>Add More Photos</label>
+              <input
+                type="file"
+                id={`editUpdatePhotos-${update.id}`}
+                name="editUpdatePhotos"
+                accept="image/*"
+                multiple
+              />
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                flexWrap: "wrap",
+                marginTop: "16px",
+              }}
+            >
+              <button
+                className="submit-button"
+                type="submit"
+                disabled={isSavingUpdateId === update.id}
+              >
+                {isSavingUpdateId === update.id ? "Saving..." : "Save Update"}
+              </button>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={stopEditingUpdate}
+                disabled={isSavingUpdateId === update.id}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <p style={{ margin: "0 0 14px", lineHeight: 1.75 }}>{update.message}</p>
+            {(() => {
+              const photos = getUpdatePhotos(update.id);
+              const layout = getUpdatePhotoLayout(photos.length);
+
+              return photos.length > 0 ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: layout.gridTemplateColumns,
+                    gap: "10px",
+                    marginTop: "12px",
+                    maxWidth: layout.maxWidth,
+                  }}
+                >
+                  {photos.map((photo) => (
+                    <div
+                      key={photo.id}
+                      style={{
+                        position: "relative",
+                      }}
+                    >
+                      <img
+                        src={photo.image_url}
+                        alt="Daily update"
+                        style={{
+                          width: "100%",
+                          height: photos.length === 1 ? "180px" : "118px",
+                          objectFit: "cover",
+                          borderRadius: "18px",
+                          boxShadow: "0 8px 20px rgba(125, 86, 46, 0.12)",
+                        }}
+                      />
+                      <button
+                        className="button button-secondary"
+                        type="button"
+                        onClick={() => void handleDeleteDailyUpdatePhoto(photo.id)}
+                        disabled={isRemovingUpdatePhotoId === photo.id}
+                        style={{
+                          position: "absolute",
+                          top: "10px",
+                          right: "10px",
+                          padding: "8px 12px",
+                          backgroundColor: "rgba(255, 250, 245, 0.92)",
+                        }}
+                      >
+                        {isRemovingUpdatePhotoId === photo.id ? "Removing..." : "Remove"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                flexWrap: "wrap",
+                marginTop: "16px",
+              }}
+            >
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => startEditingUpdate(update.id)}
+              >
+                Edit Update
+              </button>
+            </div>
+          </>
+        )}
+      </article>
+    );
+  }
+
   function startEditingUpdate(updateId: number) {
     setErrorMessage("");
     setSuccessMessage("");
@@ -603,6 +762,14 @@ export default function AdminClientProfilePage({
     (booking) => updateCountByBookingId[booking.id] > 0,
   );
   const requestedBookingId = Number(searchParams.get("bookingId") || "");
+  const focusedBookingId = Number(selectedUpdateBookingId || requestedBookingId || "");
+  const focusedBooking =
+    bookings.find((booking) => booking.id === focusedBookingId) ??
+    bookings.find((booking) => booking.id === requestedBookingId) ??
+    null;
+  const focusedBookingUpdates = focusedBooking
+    ? dailyUpdates.filter((update) => update.booking_id === focusedBooking.id)
+    : [];
 
   useEffect(() => {
     const preferredBookingIds = [
@@ -674,6 +841,131 @@ export default function AdminClientProfilePage({
                 <p>This is the approval queue that still needs your decision.</p>
               </article>
             </div>
+
+            {focusedBooking ? (
+              <section className="admin-list-card admin-priority-card" id="selected-stay-detail">
+                <div className="portal-card-topline">
+                  <div>
+                    <span className="portal-kicker">Selected Stay</span>
+                    <h2 style={{ margin: "10px 0 0" }}>
+                      {focusedBooking.pet_name || "Pet Booking"} | {focusedBooking.service_type}
+                    </h2>
+                  </div>
+                  <span className={`status-pill status-pill-${focusedBooking.status}`}>
+                    {focusedBooking.status}
+                  </span>
+                </div>
+                <p className="section-copy" style={{ marginTop: "12px" }}>
+                  This stay is currently in focus. You can review the stay details here and work
+                  on only the updates tied to this specific booking.
+                </p>
+                <div className="admin-grid" style={{ marginTop: "18px" }}>
+                  <article className="admin-card">
+                    <span className="portal-kicker">Stay Dates</span>
+                    <h3>
+                      {focusedBooking.start_date} to {focusedBooking.end_date}
+                    </h3>
+                    <p>Booking ID #{focusedBooking.id}</p>
+                  </article>
+                  <article className="admin-card">
+                    <span className="portal-kicker">Updates</span>
+                    <h3>{focusedBookingUpdates.length}</h3>
+                    <p>Published updates attached to this stay.</p>
+                  </article>
+                  <article className="admin-card">
+                    <span className="portal-kicker">Pet</span>
+                    <h3>{focusedBooking.pet_name || "Not linked yet"}</h3>
+                    <p>Household #{focusedBooking.household_id}</p>
+                  </article>
+                </div>
+                <div className="admin-list" style={{ marginTop: "18px" }}>
+                  <article className="admin-list-item">
+                    <p>
+                      <strong>Notes:</strong> {focusedBooking.notes || "No notes yet"}
+                    </p>
+                    <p>
+                      <strong>Drop-off:</strong>{" "}
+                      {focusedBooking.drop_off_note || "No drop-off note yet"}
+                    </p>
+                    <p>
+                      <strong>Pick-up:</strong> {focusedBooking.pick_up_note || "No pick-up note yet"}
+                    </p>
+                    <p>
+                      <strong>Special instructions:</strong>{" "}
+                      {focusedBooking.special_instructions || "No special instructions yet"}
+                    </p>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        marginTop: "14px",
+                      }}
+                    >
+                      <a
+                        className="button button-secondary"
+                        href="#publish-daily-update"
+                        onClick={() => setSelectedUpdateBookingId(String(focusedBooking.id))}
+                      >
+                        Publish Update for This Stay
+                      </a>
+                      {focusedBooking.status === "pending" ? (
+                        <>
+                          <button
+                            className="button button-secondary"
+                            type="button"
+                            onClick={() =>
+                              void handleUpdateBookingStatus(focusedBooking.id, "confirmed")
+                            }
+                            disabled={isUpdatingBookingId === focusedBooking.id}
+                          >
+                            {isUpdatingBookingId === focusedBooking.id ? "Saving..." : "Confirm"}
+                          </button>
+                          <button
+                            className="button button-secondary"
+                            type="button"
+                            onClick={() =>
+                              void handleUpdateBookingStatus(focusedBooking.id, "cancelled")
+                            }
+                            disabled={isUpdatingBookingId === focusedBooking.id}
+                          >
+                            {isUpdatingBookingId === focusedBooking.id ? "Saving..." : "Cancel"}
+                          </button>
+                        </>
+                      ) : null}
+                      {focusedBooking.status === "confirmed" ? (
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          onClick={() =>
+                            void handleUpdateBookingStatus(focusedBooking.id, "completed")
+                          }
+                          disabled={isUpdatingBookingId === focusedBooking.id}
+                        >
+                          {isUpdatingBookingId === focusedBooking.id ? "Saving..." : "Mark Completed"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                </div>
+
+                <div className="portal-status-stack" style={{ marginTop: "20px" }}>
+                  <section className="portal-status-group">
+                    <div className="portal-status-heading">
+                      <h4>Updates for This Stay</h4>
+                      <span>{focusedBookingUpdates.length}</span>
+                    </div>
+                    {focusedBookingUpdates.length === 0 ? (
+                      <p className="section-copy">
+                        No daily updates have been published for this stay yet.
+                      </p>
+                    ) : (
+                      <div className="admin-list">{focusedBookingUpdates.map(renderDailyUpdateCard)}</div>
+                    )}
+                  </section>
+                </div>
+              </section>
+            ) : null}
 
             <div className="admin-workspace">
               <section className="form-card admin-form-card">
@@ -1028,6 +1320,12 @@ export default function AdminClientProfilePage({
                                   marginTop: "14px",
                                 }}
                               >
+                                <Link
+                                  className="button button-secondary"
+                                  href={`/admin/clients/${booking.household_id}?bookingId=${booking.id}#selected-stay-detail`}
+                                >
+                                  Open Stay Detail
+                                </Link>
                                 {booking.status === "confirmed" ? (
                                   <button
                                     className="button button-secondary"
@@ -1058,166 +1356,7 @@ export default function AdminClientProfilePage({
                   No daily updates yet. Publish the first photo update from the form above.
                 </p>
               ) : (
-                <div className="admin-list">
-                  {dailyUpdates.map((update) => (
-                    <article
-                      className="admin-list-item"
-                      key={update.id}
-                      style={{
-                        border: "1px solid #eedcca",
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,243,235,0.98) 100%)",
-                      }}
-                      >
-                        <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: "12px",
-                          alignItems: "flex-start",
-                          marginBottom: "12px",
-                        }}
-                      >
-                        <div>
-                          <strong style={{ display: "block", marginBottom: "6px" }}>
-                            {update.pet_name || "Pet Update"}
-                          </strong>
-                          <p style={{ margin: 0 }}>{update.booking_label || "Booking update"}</p>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: "0.9rem",
-                            color: "#7b6b5f",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {formatUpdateDate(update.created_at)}
-                        </span>
-                        </div>
-                        {editingUpdateId === update.id ? (
-                          <form onSubmit={(event) => void handleEditDailyUpdate(event, update)}>
-                            <div className="field field-full" style={{ marginBottom: "14px" }}>
-                              <label htmlFor={`editUpdateMessage-${update.id}`}>Message</label>
-                              <textarea
-                                id={`editUpdateMessage-${update.id}`}
-                                name="editUpdateMessage"
-                                rows={5}
-                                defaultValue={update.message}
-                              />
-                            </div>
-                            <div className="field field-full">
-                              <label htmlFor={`editUpdatePhotos-${update.id}`}>
-                                Add More Photos
-                              </label>
-                              <input
-                                type="file"
-                                id={`editUpdatePhotos-${update.id}`}
-                                name="editUpdatePhotos"
-                                accept="image/*"
-                                multiple
-                              />
-                            </div>
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: "12px",
-                                flexWrap: "wrap",
-                                marginTop: "16px",
-                              }}
-                            >
-                              <button
-                                className="submit-button"
-                                type="submit"
-                                disabled={isSavingUpdateId === update.id}
-                              >
-                                {isSavingUpdateId === update.id ? "Saving..." : "Save Update"}
-                              </button>
-                              <button
-                                className="button button-secondary"
-                                type="button"
-                                onClick={stopEditingUpdate}
-                                disabled={isSavingUpdateId === update.id}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <>
-                            <p style={{ margin: "0 0 14px", lineHeight: 1.75 }}>{update.message}</p>
-                            {(() => {
-                              const photos = getUpdatePhotos(update.id);
-                              const layout = getUpdatePhotoLayout(photos.length);
-
-                              return photos.length > 0 ? (
-                                <div
-                                  style={{
-                                    display: "grid",
-                                    gridTemplateColumns: layout.gridTemplateColumns,
-                                    gap: "10px",
-                                    marginTop: "12px",
-                                    maxWidth: layout.maxWidth,
-                                  }}
-                                >
-                                  {photos.map((photo) => (
-                                    <div
-                                      key={photo.id}
-                                      style={{
-                                        position: "relative",
-                                      }}
-                                    >
-                                      <img
-                                        src={photo.image_url}
-                                        alt="Daily update"
-                                        style={{
-                                          width: "100%",
-                                          height: photos.length === 1 ? "180px" : "118px",
-                                          objectFit: "cover",
-                                          borderRadius: "18px",
-                                          boxShadow: "0 8px 20px rgba(125, 86, 46, 0.12)",
-                                        }}
-                                      />
-                                      <button
-                                        className="button button-secondary"
-                                        type="button"
-                                        onClick={() => void handleDeleteDailyUpdatePhoto(photo.id)}
-                                        disabled={isRemovingUpdatePhotoId === photo.id}
-                                        style={{
-                                          position: "absolute",
-                                          top: "10px",
-                                          right: "10px",
-                                          padding: "8px 12px",
-                                          backgroundColor: "rgba(255, 250, 245, 0.92)",
-                                        }}
-                                      >
-                                        {isRemovingUpdatePhotoId === photo.id ? "Removing..." : "Remove"}
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null;
-                            })()}
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: "12px",
-                                flexWrap: "wrap",
-                                marginTop: "16px",
-                              }}
-                            >
-                              <button
-                                className="button button-secondary"
-                                type="button"
-                                onClick={() => startEditingUpdate(update.id)}
-                              >
-                                Edit Update
-                              </button>
-                            </div>
-                          </>
-                        )}
-                    </article>
-                  ))}
-                </div>
+                <div className="admin-list">{dailyUpdates.map(renderDailyUpdateCard)}</div>
               )}
             </section>
           </section>
