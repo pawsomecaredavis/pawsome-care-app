@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SiteShell } from "../../../components/site-shell";
 import {
   type AvailabilityDayStatus,
   AvailabilityMonth,
   buildAvailabilityMonths,
+  getAvailableDates,
   getAvailabilityLastUpdated,
   getAvailabilityWindow,
+  getContiguousAvailableDates,
   isRangeAvailable,
 } from "../../../../lib/availability";
 import { supabase } from "../../../../lib/supabase";
@@ -43,6 +45,11 @@ export default function PortalRequestBookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [selectedServiceType, setSelectedServiceType] = useState("boarding");
+  const [selectedStartDate, setSelectedStartDate] = useState("");
+  const [selectedEndDate, setSelectedEndDate] = useState("");
+  const now = useMemo(() => new Date(), []);
+  const availabilityWindow = useMemo(() => getAvailabilityWindow(4, now), [now]);
 
   useEffect(() => {
     async function loadPage() {
@@ -115,10 +122,9 @@ export default function PortalRequestBookingPage() {
       setPets((petResult.data as Pet[]) ?? []);
 
       try {
-        const { startDate, endDate } = getAvailabilityWindow(4);
         const { data, error } = await supabase.rpc("get_public_availability", {
-          start_date: startDate,
-          end_date: endDate,
+          start_date: availabilityWindow.startDate,
+          end_date: availabilityWindow.endDate,
         });
 
         if (error) {
@@ -127,7 +133,7 @@ export default function PortalRequestBookingPage() {
 
         const rows = (data as AvailabilityDayStatus[]) ?? [];
         setAvailabilityRows(rows);
-        setAvailabilityMonths(buildAvailabilityMonths(rows, 4));
+        setAvailabilityMonths(buildAvailabilityMonths(rows, 4, now));
         setAvailabilityUpdated(getAvailabilityLastUpdated(rows));
       } catch {
         setAvailabilityUpdated("unavailable right now");
@@ -137,7 +143,60 @@ export default function PortalRequestBookingPage() {
     }
 
     void loadPage();
-  }, [router]);
+  }, [availabilityWindow.endDate, availabilityWindow.startDate, now, router]);
+
+  const availableStartDates = useMemo(
+    () =>
+      getAvailableDates(
+        availabilityRows,
+        availabilityWindow.startDate,
+        availabilityWindow.endDate,
+        now,
+      ),
+    [availabilityRows, availabilityWindow.endDate, availabilityWindow.startDate, now],
+  );
+
+  const availableEndDates = useMemo(() => {
+    if (!selectedStartDate) {
+      return [];
+    }
+
+    return getContiguousAvailableDates(
+      availabilityRows,
+      selectedStartDate,
+      availabilityWindow.endDate,
+      now,
+    );
+  }, [availabilityRows, availabilityWindow.endDate, now, selectedStartDate]);
+
+  useEffect(() => {
+    setSelectedStartDate((current) =>
+      current && availableStartDates.includes(current) ? current : "",
+    );
+  }, [availableStartDates]);
+
+  useEffect(() => {
+    if (!selectedStartDate) {
+      setSelectedEndDate("");
+      return;
+    }
+
+    setSelectedEndDate((current) => {
+      if (current && availableEndDates.includes(current)) {
+        return current;
+      }
+
+      return availableEndDates[0] ?? "";
+    });
+  }, [availableEndDates, selectedStartDate]);
+
+  function formatBookingDate(dateString: string) {
+    return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
 
   async function handleRequestBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -153,9 +212,9 @@ export default function PortalRequestBookingPage() {
     const form = event.currentTarget;
     const formData = new FormData(form);
     const petId = Number(formData.get("requestPetId"));
-    const serviceType = String(formData.get("requestServiceType") || "").trim();
-    const startDate = String(formData.get("requestStartDate") || "").trim();
-    const endDate = String(formData.get("requestEndDate") || "").trim();
+    const serviceType = selectedServiceType.trim();
+    const startDate = selectedStartDate.trim();
+    const endDate = selectedEndDate.trim();
     const notes = String(formData.get("requestNotes") || "").trim();
     const dropOffNote = String(formData.get("requestDropOffNote") || "").trim();
     const pickUpNote = String(formData.get("requestPickUpNote") || "").trim();
@@ -205,6 +264,9 @@ export default function PortalRequestBookingPage() {
 
     setSuccessMessage("Booking request submitted. It is now waiting for admin approval.");
     form.reset();
+    setSelectedServiceType("boarding");
+    setSelectedStartDate("");
+    setSelectedEndDate("");
   }
 
   return (
@@ -237,6 +299,10 @@ export default function PortalRequestBookingPage() {
                 <p className="portal-subcopy">
                   New requests start as <strong>pending</strong> until your sitter confirms them.
                 </p>
+                <p className="portal-subcopy">
+                  Start and end dates now stay linked to the live availability calendar below, so
+                  only currently open dates can be selected.
+                </p>
                 <form className="portal-form" onSubmit={handleRequestBooking}>
                   <div className="field-grid auth-grid">
                     <div className="field field-full">
@@ -264,7 +330,8 @@ export default function PortalRequestBookingPage() {
                         id="requestServiceType"
                         name="requestServiceType"
                         className="admin-select"
-                        defaultValue="boarding"
+                        value={selectedServiceType}
+                        onChange={(event) => setSelectedServiceType(event.target.value)}
                         required
                       >
                         <option value="boarding">Boarding</option>
@@ -274,11 +341,46 @@ export default function PortalRequestBookingPage() {
                     </div>
                     <div className="field field-full">
                       <label htmlFor="requestStartDate">Start Date</label>
-                      <input type="date" id="requestStartDate" name="requestStartDate" required />
+                      <select
+                        id="requestStartDate"
+                        name="requestStartDate"
+                        className="admin-select"
+                        value={selectedStartDate}
+                        onChange={(event) => setSelectedStartDate(event.target.value)}
+                        required
+                      >
+                        <option value="" disabled>
+                          Select an available start date
+                        </option>
+                        {availableStartDates.map((date) => (
+                          <option key={date} value={date}>
+                            {formatBookingDate(date)}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="field field-full">
                       <label htmlFor="requestEndDate">End Date</label>
-                      <input type="date" id="requestEndDate" name="requestEndDate" required />
+                      <select
+                        id="requestEndDate"
+                        name="requestEndDate"
+                        className="admin-select"
+                        value={selectedEndDate}
+                        onChange={(event) => setSelectedEndDate(event.target.value)}
+                        required
+                        disabled={!selectedStartDate || availableEndDates.length === 0}
+                      >
+                        <option value="" disabled>
+                          {selectedStartDate
+                            ? "Select an available end date"
+                            : "Choose a start date first"}
+                        </option>
+                        {availableEndDates.map((date) => (
+                          <option key={date} value={date}>
+                            {formatBookingDate(date)}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="field field-full">
                       <label htmlFor="requestNotes">Booking Notes</label>
@@ -305,7 +407,12 @@ export default function PortalRequestBookingPage() {
                     className="submit-button"
                     type="submit"
                     disabled={
-                      isSubmitting || isLoading || !household || pets.length === 0 || profile?.role === "admin"
+                      isSubmitting ||
+                      isLoading ||
+                      !household ||
+                      pets.length === 0 ||
+                      profile?.role === "admin" ||
+                      availableStartDates.length === 0
                     }
                   >
                     {isSubmitting ? "Submitting booking request..." : "Request Booking"}
@@ -325,10 +432,17 @@ export default function PortalRequestBookingPage() {
                   status.
                 </p>
                 <div className="portal-mini-steps">
-                  <span>1. Choose pet and dates</span>
+                  <span>1. Choose pet and available dates</span>
                   <span>2. Submit request</span>
                   <span>3. Wait for approval</span>
                 </div>
+                {selectedStartDate ? (
+                  <p style={{ marginTop: "18px", color: "#7c4724", fontWeight: 600 }}>
+                    {availableEndDates.length > 0
+                      ? `You can currently book from ${formatBookingDate(selectedStartDate)} through ${formatBookingDate(availableEndDates[availableEndDates.length - 1])} without crossing a blocked date.`
+                      : "That start date no longer has an open booking range."}
+                  </p>
+                ) : null}
               </aside>
             </div>
 

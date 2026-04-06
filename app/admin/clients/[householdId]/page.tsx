@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { uploadDailyUpdatePhotos } from "../../../../lib/daily-update-photos";
+import { isLikelyValidPhone, normalizePhoneForStorage } from "../../../../lib/phone";
 import { getCurrentProfile, type Profile } from "../../../../lib/profile";
 import { SiteShell } from "../../../components/site-shell";
 import { supabase } from "../../../../lib/supabase";
@@ -392,7 +393,14 @@ export default function AdminClientProfilePage({
     setIsSavingHousehold(true);
     const formData = new FormData(event.currentTarget);
     const nextEmail = String(formData.get("contactEmail") || "").trim();
-    const nextPhone = String(formData.get("contactPhone") || "").trim();
+    const nextPhoneInput = String(formData.get("contactPhone") || "").trim();
+    const nextPhone = nextPhoneInput ? normalizePhoneForStorage(nextPhoneInput) : "";
+
+    if (nextPhoneInput && !isLikelyValidPhone(nextPhoneInput)) {
+      setIsSavingHousehold(false);
+      setErrorMessage("Please enter a valid contact phone number.");
+      return;
+    }
 
     const { data, error } = await supabase.rpc("admin_update_household_contact", {
       target_household_id: household.id,

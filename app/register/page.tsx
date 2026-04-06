@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteShell } from "../components/site-shell";
+import { isLikelyValidPhone, normalizePhoneForStorage } from "../../lib/phone";
 import { supabase } from "../../lib/supabase";
 
 export default function RegisterPage() {
@@ -20,14 +21,21 @@ export default function RegisterPage() {
 
     const formData = new FormData(event.currentTarget);
     const fullName = String(formData.get("fullName") || "").trim();
-    const phone = String(formData.get("phone") || "").trim();
+    const phoneInput = String(formData.get("phone") || "").trim();
     const email = String(formData.get("email") || "").trim();
     const password = String(formData.get("password") || "");
     const confirmPassword = String(formData.get("confirmPassword") || "");
+    const phone = normalizePhoneForStorage(phoneInput);
 
     if (password !== confirmPassword) {
       setIsSubmitting(false);
       setErrorMessage("Your passwords do not match yet. Please enter the same password twice.");
+      return;
+    }
+
+    if (!isLikelyValidPhone(phoneInput)) {
+      setIsSubmitting(false);
+      setErrorMessage("Please enter a valid mobile phone number.");
       return;
     }
 
@@ -46,6 +54,11 @@ export default function RegisterPage() {
     setIsSubmitting(false);
 
     if (error) {
+      if (error.message.toLowerCase().includes("duplicate")) {
+        setErrorMessage("That email or phone number is already connected to an account.");
+        return;
+      }
+
       setErrorMessage(error.message);
       return;
     }

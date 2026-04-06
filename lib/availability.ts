@@ -143,6 +143,15 @@ export function isAvailableDate(
   return month.available.includes(day);
 }
 
+export function isAvailableDateFromRows(
+  rows: AvailabilityDayStatus[],
+  dateString: string,
+  now = new Date(),
+) {
+  const status = rows.find((row) => row.date === dateString);
+  return status ? status.is_available : getDefaultAvailabilityForDate(dateString, now);
+}
+
 export function getDateRange(dateFrom: string, dateTo: string) {
   const dates: string[] = [];
   const start = new Date(`${dateFrom}T00:00:00`);
@@ -177,4 +186,35 @@ export function isRangeAvailable(
   }
 
   return range.every((date) => isAvailableDate(months, date));
+}
+
+export function getAvailableDates(
+  rows: AvailabilityDayStatus[],
+  dateFrom: string,
+  dateTo: string,
+  now = new Date(),
+) {
+  return getDateRange(dateFrom, dateTo).filter((date) =>
+    isAvailableDateFromRows(rows, date, now),
+  );
+}
+
+export function getContiguousAvailableDates(
+  rows: AvailabilityDayStatus[],
+  startDate: string,
+  windowEndDate: string,
+  now = new Date(),
+) {
+  const range = getDateRange(startDate, windowEndDate);
+  const contiguous: string[] = [];
+
+  for (const date of range) {
+    if (!isAvailableDateFromRows(rows, date, now)) {
+      break;
+    }
+
+    contiguous.push(date);
+  }
+
+  return contiguous;
 }

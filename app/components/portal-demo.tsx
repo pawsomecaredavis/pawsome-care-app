@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { isLikelyValidPhone, normalizePhoneForStorage } from "../../lib/phone";
 import { supabase } from "../../lib/supabase";
 
 type Profile = {
@@ -569,7 +570,14 @@ export function PortalDemo() {
     setIsSavingHousehold(true);
     const formData = new FormData(event.currentTarget);
     const nextEmail = String(formData.get("contactEmail") || "").trim();
-    const nextPhone = String(formData.get("contactPhone") || "").trim();
+    const nextPhoneInput = String(formData.get("contactPhone") || "").trim();
+    const nextPhone = nextPhoneInput ? normalizePhoneForStorage(nextPhoneInput) : "";
+
+    if (nextPhoneInput && !isLikelyValidPhone(nextPhoneInput)) {
+      setIsSavingHousehold(false);
+      setErrorMessage("Please enter a valid mobile phone number.");
+      return;
+    }
 
     const { data, error } = await supabase
       .from("households")
