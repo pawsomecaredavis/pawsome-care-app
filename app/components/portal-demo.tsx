@@ -82,6 +82,13 @@ export function PortalDemo() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  useEffect(() => {
+    if (sessionEmail && profile?.role === "admin") {
+      router.replace("/admin");
+      router.refresh();
+    }
+  }, [profile?.role, router, sessionEmail]);
+
   function clearMessages() {
     setErrorMessage("");
     setSuccessMessage("");
@@ -701,6 +708,14 @@ export function PortalDemo() {
     .slice()
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 3);
+
+  if (sessionEmail && isLoading) {
+    return (
+      <section className="portal-dashboard">
+        <p className="portal-loading-text">Loading your account...</p>
+      </section>
+    );
+  }
 
   if (sessionEmail) {
     if (profile?.role === "admin") {
