@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { isLikelyValidPhone, normalizePhoneForStorage } from "../../lib/phone";
 import { supabase } from "../../lib/supabase";
 
@@ -64,7 +64,6 @@ type Booking = {
 
 export function PortalDemo() {
   const router = useRouter();
-  const petsSectionRef = useRef<HTMLElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
   const [isSavingHousehold, setIsSavingHousehold] = useState(false);
@@ -443,6 +442,38 @@ export function PortalDemo() {
     });
   }
 
+  function formatBookingDate(value: string) {
+    return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  function formatBookingWindow(startDate: string, endDate: string) {
+    return `${formatBookingDate(startDate)} to ${formatBookingDate(endDate)}`;
+  }
+
+  function getBookingStatusSummary(status: string) {
+    const labels: Record<string, string> = {
+      pending: "Waiting for sitter approval",
+      confirmed: "Confirmed and on the calendar",
+      completed: "Completed stay",
+      cancelled: "Cancelled request",
+    };
+
+    return labels[status] || "Booking updated";
+  }
+
+  function getBookingExtraDetails(booking: Booking) {
+    return [
+      { label: "Booking Notes", value: booking.notes },
+      { label: "Drop-off", value: booking.drop_off_note },
+      { label: "Pick-up", value: booking.pick_up_note },
+      { label: "Special Instructions", value: booking.special_instructions },
+    ].filter((item) => Boolean(item.value?.trim()));
+  }
+
   function getBookingStatusGroups() {
     const labels: Record<string, string> = {
       pending: "Pending Approval",
@@ -600,6 +631,13 @@ export function PortalDemo() {
     setSuccessMessage("Your contact details were updated successfully.");
   }
 
+  const pendingBookings = bookings.filter((booking) => booking.status === "pending");
+  const confirmedBookings = bookings.filter((booking) => booking.status === "confirmed");
+  const completedBookings = bookings.filter((booking) => booking.status === "completed");
+  const nextConfirmedBooking = confirmedBookings
+    .slice()
+    .sort((a, b) => a.start_date.localeCompare(b.start_date))[0] ?? null;
+
   if (sessionEmail) {
     if (profile?.role === "admin") {
       return (
@@ -629,17 +667,96 @@ export function PortalDemo() {
         {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
         {successMessage ? <p className="auth-success">{successMessage}</p> : null}
 
+        <section className="portal-welcome-shell">
+          <div className="portal-welcome-copy">
+            <span className="portal-kicker">Account Overview</span>
+            <h3 className="portal-welcome-title">Thank you for booking with us</h3>
+            <p className="portal-subcopy portal-welcome-text">
+              Your portal keeps your care details, active stays, and updates in one calm place.
+            </p>
+            <div className="portal-welcome-focus">
+              <span className="portal-welcome-focus-label">Current Focus</span>
+              <strong>
+                {nextConfirmedBooking
+                  ? `Next stay: ${nextConfirmedBooking.pet_name || "Pet"}`
+                  : "Your portal is ready for the next request"}
+              </strong>
+              <p className="portal-subcopy">
+                {nextConfirmedBooking
+                  ? `${nextConfirmedBooking.service_type} | ${formatBookingWindow(nextConfirmedBooking.start_date, nextConfirmedBooking.end_date)}`
+                  : "Add pet profiles, request a stay, and come back here for updates and care notes."}
+              </p>
+            </div>
+          </div>
+
+          <div className="portal-welcome-side">
+            <div className="portal-welcome-statuses">
+              <span className="status-pill status-pill-pending">
+                {pendingBookings.length} pending
+              </span>
+              <span className="status-pill status-pill-confirmed">
+                {confirmedBookings.length} confirmed
+              </span>
+              <span className="status-pill status-pill-completed">
+                {completedBookings.length} completed
+              </span>
+            </div>
+
+            <div className="portal-summary-grid">
+              <article className="portal-summary-card portal-summary-tile">
+                <span className="portal-kicker">Household</span>
+                <strong>{household ? `#${household.id}` : "Not found yet"}</strong>
+                <p>{household ? "This is the household currently tied to your portal account." : "We have not found your household record yet."}</p>
+              </article>
+              <article className="portal-summary-card portal-summary-tile">
+                <span className="portal-kicker">Pet Profiles</span>
+                <strong>{pets.length}</strong>
+                <p>Keep each pet profile current before requesting a stay.</p>
+              </article>
+              <article className="portal-summary-card portal-summary-tile">
+                <span className="portal-kicker">Bookings</span>
+                <strong>{bookings.length}</strong>
+                <p>Pending requests, confirmed stays, and completed visits all appear here.</p>
+              </article>
+              <article className="portal-summary-card portal-summary-tile">
+                <span className="portal-kicker">Daily Updates</span>
+                <strong>{dailyUpdates.length}</strong>
+                <p>Updates and photo check-ins will appear here once a stay is in progress.</p>
+              </article>
+            </div>
+            <div className="portal-admin-cta portal-quick-links">
+              <div>
+                <strong>Quick Links</strong>
+                <p className="portal-subcopy" style={{ margin: "6px 0 0" }}>
+                  Jump straight to the area you want to manage.
+                </p>
+              </div>
+              <div className="portal-inline-actions">
+                <a className="button button-secondary" href="#pet-profiles">Pet Profiles</a>
+                <Link className="button button-secondary" href="/portal/bookings/request">Request Booking</Link>
+                <a className="button button-secondary" href="#contact-details">Edit Contact Details</a>
+                <a className="button button-secondary" href="#daily-updates">Booking Updates</a>
+              </div>
+            </div>
+          </div>
+          {!household && sessionUserId ? (
+            <p className="portal-subcopy" style={{ marginTop: "16px" }}>
+              We looked for a household tied to your signed-in user id: <strong>{sessionUserId}</strong>
+            </p>
+          ) : null}
+        </section>
+
         <section className="portal-history">
           <h3>Your Next Steps</h3>
           <div className="portal-action-grid">
-            <Link className="portal-action-card portal-action-card-primary" href="/portal/pets/new">
+            <a className="portal-action-card portal-action-card-primary" href="#pet-profiles">
               <span className="portal-action-kicker">Step 1</span>
               <strong>Add or Update Pet Profiles</strong>
               <p>
-                Keep each pet&apos;s photo and core details current before requesting a stay.
+                Add a new pet or update an existing profile from one place before requesting a stay.
               </p>
               <span className="portal-action-link">Manage Pet Profiles</span>
-            </Link>
+            </a>
             <Link
               className="portal-action-card portal-action-card-secondary"
               href="/portal/bookings/request"
@@ -666,80 +783,22 @@ export function PortalDemo() {
           </div>
         </section>
 
-        <div className="portal-detail-grid">
-          <section className="portal-panel">
-            <h3>Household & Booking Snapshot</h3>
-            <p className="portal-subcopy">
-              Here is the current status of your household records and stay requests.
-            </p>
-            <ul className="portal-list">
-              <li>
-                Household:{" "}
-                <strong>
-                  {household ? `#${household.id}` : "We have not found your household yet."}
-                </strong>
-              </li>
-              <li>
-                Pets on file: <strong>{pets.length}</strong>
-              </li>
-              <li>
-                Booking requests and stays: <strong>{bookings.length}</strong>
-              </li>
-              <li>
-                Daily updates: <strong>{dailyUpdates.length}</strong>
-              </li>
-            </ul>
-            {!household && sessionUserId ? (
-              <p className="portal-subcopy">
-                We looked for a household tied to your signed-in user id:{" "}
-                <strong>{sessionUserId}</strong>
+        <section className="portal-history" id="pet-profiles">
+          <div className="portal-card-topline">
+            <div>
+              <h3>Add or Update Pet Profiles</h3>
+              <p className="portal-subcopy" style={{ margin: "10px 0 0" }}>
+                Add a new pet profile or edit the ones you already have on file without leaving
+                your portal home.
               </p>
-            ) : null}
-          </section>
-          <section className="portal-panel">
-            <h3>My Contact Details</h3>
-            <p className="portal-subcopy">
-              Keep your email and mobile phone current so booking requests and stay updates reach you.
-            </p>
-            <form onSubmit={handleUpdateMyContact}>
-              <div className="field-grid auth-grid">
-                <div className="field field-full">
-                  <label htmlFor="contactEmail">Contact Email</label>
-                  <input
-                    type="email"
-                    id="contactEmail"
-                    name="contactEmail"
-                    defaultValue={household?.contact_email || sessionEmail}
-                    placeholder="client@email.com"
-                  />
-                </div>
-                <div className="field field-full">
-                  <label htmlFor="contactPhone">Mobile Phone</label>
-                  <input
-                    type="tel"
-                    id="contactPhone"
-                    name="contactPhone"
-                    defaultValue={household?.contact_phone || ""}
-                    placeholder="(530) 555-1234"
-                  />
-                </div>
-              </div>
-              <button
-                className="submit-button"
-                type="submit"
-                disabled={isSavingHousehold || !household}
-              >
-                {isSavingHousehold ? "Saving details..." : "Save Contact Details"}
-              </button>
-            </form>
-          </section>
-        </div>
-
-        <section className="portal-history" ref={petsSectionRef}>
-          <h3>Edit My Pets</h3>
+            </div>
+            <Link className="button button-secondary" href="/portal/pets/new">
+              Add New Pet Profile
+            </Link>
+          </div>
           {pets.length === 0 ? (
             <p className="section-copy">
-              No pet profiles yet. Use the Add Pet Profile button above to create your first one.
+              No pet profiles yet. Use the button above to create your first one.
             </p>
           ) : (
             <div className="portal-history-grid">
@@ -909,6 +968,49 @@ export function PortalDemo() {
           )}
         </section>
 
+        <section className="portal-history" id="contact-details">
+          <div className="portal-card-topline">
+            <div>
+              <h3>Edit Contact Details</h3>
+              <p className="portal-subcopy" style={{ margin: "10px 0 0" }}>
+                Keep your email and mobile phone current so booking requests and stay updates
+                reach you quickly.
+              </p>
+            </div>
+          </div>
+          <form onSubmit={handleUpdateMyContact}>
+            <div className="field-grid auth-grid">
+              <div className="field field-full">
+                <label htmlFor="contactEmail">Contact Email</label>
+                <input
+                  type="email"
+                  id="contactEmail"
+                  name="contactEmail"
+                  defaultValue={household?.contact_email || sessionEmail}
+                  placeholder="client@email.com"
+                />
+              </div>
+              <div className="field field-full">
+                <label htmlFor="contactPhone">Mobile Phone</label>
+                <input
+                  type="tel"
+                  id="contactPhone"
+                  name="contactPhone"
+                  defaultValue={household?.contact_phone || ""}
+                  placeholder="(530) 555-1234"
+                />
+              </div>
+            </div>
+            <button
+              className="submit-button"
+              type="submit"
+              disabled={isSavingHousehold || !household}
+            >
+              {isSavingHousehold ? "Saving details..." : "Save Contact Details"}
+            </button>
+          </form>
+        </section>
+
         <section className="portal-history">
           <h3>Bookings & Requests</h3>
           {bookings.length === 0 ? (
@@ -925,7 +1027,7 @@ export function PortalDemo() {
                   </div>
                   <div className="portal-history-grid">
                     {group.items.map((booking) => (
-                      <article className="portal-history-card" key={booking.id}>
+                      <article className="portal-history-card portal-booking-card" key={booking.id}>
                         <div className="portal-card-topline">
                           <span>{booking.pet_name || "Pet Booking"}</span>
                           <span className={`status-pill status-pill-${booking.status}`}>
@@ -933,15 +1035,24 @@ export function PortalDemo() {
                           </span>
                         </div>
                         <strong>{booking.service_type}</strong>
-                        <p>Start: {booking.start_date}</p>
-                        <p>End: {booking.end_date}</p>
-                        <p>Notes: {booking.notes || "No notes yet"}</p>
-                        <p>Drop-off: {booking.drop_off_note || "No drop-off note yet"}</p>
-                        <p>Pick-up: {booking.pick_up_note || "No pick-up note yet"}</p>
-                        <p>
-                          Special instructions:{" "}
-                          {booking.special_instructions || "No special instructions yet"}
+                        <p className="portal-booking-window">
+                          {formatBookingWindow(booking.start_date, booking.end_date)}
                         </p>
+                        <p className="portal-subcopy" style={{ margin: 0 }}>
+                          {getBookingStatusSummary(booking.status)}
+                        </p>
+                        {getBookingExtraDetails(booking).length > 0 ? (
+                          <details className="portal-booking-details">
+                            <summary>View booking details</summary>
+                            <div className="portal-booking-details-body">
+                              {getBookingExtraDetails(booking).map((item) => (
+                                <p key={`${booking.id}-${item.label}`}>
+                                  <strong>{item.label}:</strong> {item.value}
+                                </p>
+                              ))}
+                            </div>
+                          </details>
+                        ) : null}
                       </article>
                     ))}
                   </div>
