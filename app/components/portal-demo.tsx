@@ -70,6 +70,7 @@ export function PortalDemo() {
   const [isSavingPetId, setIsSavingPetId] = useState<number | null>(null);
   const [isDeletingPetId, setIsDeletingPetId] = useState<number | null>(null);
   const [editingPetId, setEditingPetId] = useState<number | null>(null);
+  const [portalView, setPortalView] = useState<"home" | "pets" | "contact" | "updates">("home");
   const [sessionEmail, setSessionEmail] = useState("");
   const [sessionUserId, setSessionUserId] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -516,6 +517,65 @@ export function PortalDemo() {
     return Array.from(groups.values());
   }
 
+  function renderPortalUpdateCard(update: DailyUpdate) {
+    return (
+      <article
+        className="portal-history-card"
+        key={update.id}
+        style={{
+          border: "1px solid #eedcca",
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,243,235,0.98) 100%)",
+        }}
+      >
+        <div className="portal-card-topline">
+          <span>{getPetName(update.pet_id)}</span>
+          <span className="portal-update-time">{formatUpdateDate(update.created_at)}</span>
+        </div>
+        <strong>{update.booking_label || "Booking update"}</strong>
+        <p
+          style={{
+            margin: "12px 0 14px",
+            lineHeight: 1.75,
+          }}
+        >
+          {update.message}
+        </p>
+        {(() => {
+          const photos = getUpdatePhotos(update.id);
+          const layout = getUpdatePhotoLayout(photos.length);
+
+          return photos.length > 0 ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: layout.gridTemplateColumns,
+                gap: "10px",
+                marginTop: "12px",
+                maxWidth: layout.maxWidth,
+              }}
+            >
+              {photos.map((photo) => (
+                <img
+                  key={photo.id}
+                  src={photo.image_url}
+                  alt="Daily update"
+                  style={{
+                    width: "100%",
+                    height: photos.length === 1 ? "180px" : "118px",
+                    objectFit: "cover",
+                    borderRadius: "18px",
+                    boxShadow: "0 8px 20px rgba(125, 86, 46, 0.12)",
+                  }}
+                />
+              ))}
+            </div>
+          ) : null;
+        })()}
+      </article>
+    );
+  }
+
   async function handleUpdatePet(event: FormEvent<HTMLFormElement>, petId: number) {
     event.preventDefault();
     clearMessages();
@@ -637,6 +697,10 @@ export function PortalDemo() {
   const nextConfirmedBooking = confirmedBookings
     .slice()
     .sort((a, b) => a.start_date.localeCompare(b.start_date))[0] ?? null;
+  const recentDailyUpdates = dailyUpdates
+    .slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 3);
 
   if (sessionEmail) {
     if (profile?.role === "admin") {
@@ -667,33 +731,36 @@ export function PortalDemo() {
         {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
         {successMessage ? <p className="auth-success">{successMessage}</p> : null}
 
-        <section className="portal-welcome-shell">
-          <div className="portal-welcome-copy">
-            <span className="portal-kicker">Account Overview</span>
-            <h3 className="portal-welcome-title">Thank you for booking with us</h3>
-            <p className="portal-subcopy portal-welcome-text">
-              Your portal keeps your care details, active stays, and updates in one calm place.
+        <section className="portal-home-shell">
+          <div className="portal-home-copy">
+            <span className="portal-kicker">Portal Home</span>
+            <h3 className="portal-home-title">Thank you for booking with us</h3>
+            <p className="portal-subcopy portal-home-text">
+              Keep this page simple: use the quick links to manage your account, and come back
+              here for the newest stay updates.
             </p>
-            <div className="portal-welcome-focus">
-              <span className="portal-welcome-focus-label">Current Focus</span>
-              <strong>
-                {nextConfirmedBooking
-                  ? `Next stay: ${nextConfirmedBooking.pet_name || "Pet"}`
-                  : "Your portal is ready for the next request"}
-              </strong>
-              <p className="portal-subcopy">
-                {nextConfirmedBooking
-                  ? `${nextConfirmedBooking.service_type} | ${formatBookingWindow(nextConfirmedBooking.start_date, nextConfirmedBooking.end_date)}`
-                  : "Add pet profiles, request a stay, and come back here for updates and care notes."}
+            {nextConfirmedBooking ? (
+              <p className="portal-home-note">
+                <strong>Next confirmed stay:</strong>{" "}
+                {nextConfirmedBooking.pet_name || "Pet"} | {nextConfirmedBooking.service_type} |{" "}
+                {formatBookingWindow(nextConfirmedBooking.start_date, nextConfirmedBooking.end_date)}
               </p>
-            </div>
+            ) : null}
+            {portalView !== "home" ? (
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => setPortalView("home")}
+                style={{ width: "fit-content" }}
+              >
+                Back to portal home
+              </button>
+            ) : null}
           </div>
 
-          <div className="portal-welcome-side">
+          <div className="portal-home-side">
             <div className="portal-welcome-statuses">
-              <span className="status-pill status-pill-pending">
-                {pendingBookings.length} pending
-              </span>
+              <span className="status-pill status-pill-pending">{pendingBookings.length} pending</span>
               <span className="status-pill status-pill-confirmed">
                 {confirmedBookings.length} confirmed
               </span>
@@ -701,89 +768,51 @@ export function PortalDemo() {
                 {completedBookings.length} completed
               </span>
             </div>
-
-            <div className="portal-summary-grid">
-              <article className="portal-summary-card portal-summary-tile">
-                <span className="portal-kicker">Household</span>
-                <strong>{household ? `#${household.id}` : "Not found yet"}</strong>
-                <p>{household ? "This is the household currently tied to your portal account." : "We have not found your household record yet."}</p>
-              </article>
-              <article className="portal-summary-card portal-summary-tile">
-                <span className="portal-kicker">Pet Profiles</span>
-                <strong>{pets.length}</strong>
-                <p>Keep each pet profile current before requesting a stay.</p>
-              </article>
-              <article className="portal-summary-card portal-summary-tile">
-                <span className="portal-kicker">Bookings</span>
-                <strong>{bookings.length}</strong>
-                <p>Pending requests, confirmed stays, and completed visits all appear here.</p>
-              </article>
-              <article className="portal-summary-card portal-summary-tile">
-                <span className="portal-kicker">Daily Updates</span>
-                <strong>{dailyUpdates.length}</strong>
-                <p>Updates and photo check-ins will appear here once a stay is in progress.</p>
-              </article>
-            </div>
-            <div className="portal-admin-cta portal-quick-links">
+            <div className="portal-admin-cta portal-quick-links portal-home-links">
               <div>
                 <strong>Quick Links</strong>
                 <p className="portal-subcopy" style={{ margin: "6px 0 0" }}>
-                  Jump straight to the area you want to manage.
+                  Jump straight to the section you need.
                 </p>
               </div>
               <div className="portal-inline-actions">
-                <a className="button button-secondary" href="#pet-profiles">Pet Profiles</a>
-                <Link className="button button-secondary" href="/portal/bookings/request">Request Booking</Link>
-                <a className="button button-secondary" href="#contact-details">Edit Contact Details</a>
-                <a className="button button-secondary" href="#daily-updates">Booking Updates</a>
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => setPortalView("pets")}
+                >
+                  Pet Profiles
+                </button>
+                <Link className="button button-secondary" href="/portal/bookings/request">
+                  Request Booking
+                </Link>
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => setPortalView("contact")}
+                >
+                  Edit Contact Details
+                </button>
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => setPortalView("updates")}
+                >
+                  Booking Updates
+                </button>
               </div>
             </div>
           </div>
-          {!household && sessionUserId ? (
-            <p className="portal-subcopy" style={{ marginTop: "16px" }}>
-              We looked for a household tied to your signed-in user id: <strong>{sessionUserId}</strong>
-            </p>
-          ) : null}
         </section>
 
-        <section className="portal-history">
-          <h3>Your Next Steps</h3>
-          <div className="portal-action-grid">
-            <a className="portal-action-card portal-action-card-primary" href="#pet-profiles">
-              <span className="portal-action-kicker">Step 1</span>
-              <strong>Add or Update Pet Profiles</strong>
-              <p>
-                Add a new pet or update an existing profile from one place before requesting a stay.
-              </p>
-              <span className="portal-action-link">Manage Pet Profiles</span>
-            </a>
-            <Link
-              className="portal-action-card portal-action-card-secondary"
-              href="/portal/bookings/request"
-            >
-              <span className="portal-action-kicker">Step 2</span>
-              <strong>Request a Booking</strong>
-              <p>
-                Send a boarding or daycare request and wait for confirmation from the admin side.
-              </p>
-              <span className="portal-action-link">Request Booking</span>
-            </Link>
-            <a className="portal-action-card" href="#daily-updates">
-              <span className="portal-action-kicker">Step 3</span>
-              <strong>Check Booking Updates</strong>
-              <p>
-                Once a stay is confirmed, come back here to follow updates and photo check-ins.
-              </p>
-              <span className="portal-action-link">
-                {dailyUpdates.length > 0
-                  ? `${dailyUpdates.length} update${dailyUpdates.length === 1 ? "" : "s"} available`
-                  : "Updates will appear here"}
-              </span>
-            </a>
-          </div>
-        </section>
+        {!household && sessionUserId ? (
+          <p className="portal-subcopy" style={{ marginTop: "16px" }}>
+            We looked for a household tied to your signed-in user id: <strong>{sessionUserId}</strong>
+          </p>
+        ) : null}
 
-        <section className="portal-history" id="pet-profiles">
+        {portalView === "pets" ? (
+          <section className="portal-history" id="pet-profiles">
           <div className="portal-card-topline">
             <div>
               <h3>Add or Update Pet Profiles</h3>
@@ -966,9 +995,11 @@ export function PortalDemo() {
               ))}
             </div>
           )}
-        </section>
+          </section>
+        ) : null}
 
-        <section className="portal-history" id="contact-details">
+        {portalView === "contact" ? (
+          <section className="portal-history" id="contact-details">
           <div className="portal-card-topline">
             <div>
               <h3>Edit Contact Details</h3>
@@ -1009,137 +1040,71 @@ export function PortalDemo() {
               {isSavingHousehold ? "Saving details..." : "Save Contact Details"}
             </button>
           </form>
-        </section>
+          </section>
+        ) : null}
 
-        <section className="portal-history">
-          <h3>Bookings & Requests</h3>
-          {bookings.length === 0 ? (
-            <p className="section-copy">
-              No bookings yet. Once you request a stay, it will show up here.
-            </p>
-          ) : (
-            <div className="portal-status-stack">
-              {getBookingStatusGroups().map((group) => (
-                <section key={group.status} className="portal-status-group">
-                  <div className="portal-status-heading">
-                    <h4>{group.label}</h4>
-                    <span>{group.items.length}</span>
-                  </div>
-                  <div className="portal-history-grid">
-                    {group.items.map((booking) => (
-                      <article className="portal-history-card portal-booking-card" key={booking.id}>
-                        <div className="portal-card-topline">
-                          <span>{booking.pet_name || "Pet Booking"}</span>
-                          <span className={`status-pill status-pill-${booking.status}`}>
-                            {booking.status}
-                          </span>
-                        </div>
-                        <strong>{booking.service_type}</strong>
-                        <p className="portal-booking-window">
-                          {formatBookingWindow(booking.start_date, booking.end_date)}
-                        </p>
-                        <p className="portal-subcopy" style={{ margin: 0 }}>
-                          {getBookingStatusSummary(booking.status)}
-                        </p>
-                        {getBookingExtraDetails(booking).length > 0 ? (
-                          <details className="portal-booking-details">
-                            <summary>View booking details</summary>
-                            <div className="portal-booking-details-body">
-                              {getBookingExtraDetails(booking).map((item) => (
-                                <p key={`${booking.id}-${item.label}`}>
-                                  <strong>{item.label}:</strong> {item.value}
-                                </p>
-                              ))}
-                            </div>
-                          </details>
-                        ) : null}
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              ))}
+        {portalView === "updates" ? (
+          <section className="portal-history" id="daily-updates">
+            <div className="portal-card-topline">
+              <div>
+                <h3>All Daily Updates</h3>
+                <p className="portal-subcopy" style={{ margin: "10px 0 0" }}>
+                  Every message and photo check-in tied to your stays appears here.
+                </p>
+              </div>
             </div>
-          )}
-        </section>
+            {dailyUpdates.length === 0 ? (
+              <p className="section-copy">
+                No daily updates yet. Once you are checked in, photos and messages from your
+                sitter will appear here.
+              </p>
+            ) : (
+              <div className="portal-status-stack">
+                {getDailyUpdateGroups().map((group) => (
+                  <section key={group.key} className="portal-status-group">
+                    <div className="portal-status-heading">
+                      <h4>{group.title}</h4>
+                      <span>{group.updates.length}</span>
+                    </div>
+                    <div className="portal-history-grid">{group.updates.map(renderPortalUpdateCard)}</div>
+                  </section>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
 
-        <section className="portal-history" id="daily-updates">
-          <h3>Daily Updates</h3>
-          {dailyUpdates.length === 0 ? (
-            <p className="section-copy">
-              No daily updates yet. Once you are checked in, photos and messages from your
-              sitter will appear here.
-            </p>
-          ) : (
-            <div className="portal-status-stack">
-              {getDailyUpdateGroups().map((group) => (
-                <section key={group.key} className="portal-status-group">
-                  <div className="portal-status-heading">
-                    <h4>{group.title}</h4>
-                    <span>{group.updates.length}</span>
-                  </div>
-                  <div className="portal-history-grid">
-                    {group.updates.map((update) => (
-                      <article
-                        className="portal-history-card"
-                        key={update.id}
-                        style={{
-                          border: "1px solid #eedcca",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,243,235,0.98) 100%)",
-                        }}
-                      >
-                        <div className="portal-card-topline">
-                          <span>{getPetName(update.pet_id)}</span>
-                          <span className="portal-update-time">{formatUpdateDate(update.created_at)}</span>
-                        </div>
-                        <strong>{update.booking_label || "Booking update"}</strong>
-                        <p
-                          style={{
-                            margin: "12px 0 14px",
-                            lineHeight: 1.75,
-                          }}
-                        >
-                          {update.message}
-                        </p>
-                        {(() => {
-                          const photos = getUpdatePhotos(update.id);
-                          const layout = getUpdatePhotoLayout(photos.length);
-
-                          return photos.length > 0 ? (
-                            <div
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: layout.gridTemplateColumns,
-                                gap: "10px",
-                                marginTop: "12px",
-                                maxWidth: layout.maxWidth,
-                              }}
-                            >
-                              {photos.map((photo) => (
-                                <img
-                                  key={photo.id}
-                                  src={photo.image_url}
-                                  alt="Daily update"
-                                  style={{
-                                    width: "100%",
-                                    height: photos.length === 1 ? "180px" : "118px",
-                                    objectFit: "cover",
-                                    borderRadius: "18px",
-                                    boxShadow: "0 8px 20px rgba(125, 86, 46, 0.12)",
-                                  }}
-                                />
-                              ))}
-                            </div>
-                          ) : null;
-                        })()}
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              ))}
+        {portalView === "home" ? (
+          <section className="portal-history" id="daily-updates">
+            <div className="portal-card-topline">
+              <div>
+                <h3>Most Recent Daily Updates</h3>
+                <p className="portal-subcopy" style={{ margin: "10px 0 0" }}>
+                  The newest photos and messages from recent stays will show up here first.
+                </p>
+              </div>
+              {dailyUpdates.length > 3 ? (
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => setPortalView("updates")}
+                >
+                  View All Updates
+                </button>
+              ) : null}
             </div>
-          )}
-        </section>
+            {recentDailyUpdates.length === 0 ? (
+              <p className="section-copy">
+                No daily updates yet. Once you are checked in, photos and messages from your
+                sitter will appear here.
+              </p>
+            ) : (
+              <div className="portal-history-grid">
+                {recentDailyUpdates.map(renderPortalUpdateCard)}
+              </div>
+            )}
+          </section>
+        ) : null}
 
       </section>
     );
