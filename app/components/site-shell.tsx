@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { getCurrentProfile } from "../../lib/profile";
+import { supabase } from "../../lib/supabase";
 
 type SiteShellProps = {
   children: ReactNode;
@@ -10,11 +12,69 @@ type SiteShellProps = {
 export function SiteShell({ children }: SiteShellProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [portalHref, setPortalHref] = useState("/portal");
+  const [portalLabel, setPortalLabel] = useState("Pet Parent Portal");
 
   function handleCloseMenus() {
     setIsMenuOpen(false);
     setIsAboutOpen(false);
   }
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncPortalLink() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        if (!isMounted) {
+          return;
+        }
+
+        setPortalHref("/portal");
+        setPortalLabel("Pet Parent Portal");
+        return;
+      }
+
+      try {
+        const profile = await getCurrentProfile(user.id);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (profile.role === "admin") {
+          setPortalHref("/admin");
+          setPortalLabel("Admin Dashboard");
+          return;
+        }
+      } catch {
+        // Fall back to the standard portal link if the profile lookup fails.
+      }
+
+      if (!isMounted) {
+        return;
+      }
+
+      setPortalHref("/portal");
+      setPortalLabel("Pet Parent Portal");
+    }
+
+    void syncPortalLink();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      void syncPortalLink();
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <>
@@ -71,7 +131,7 @@ export function SiteShell({ children }: SiteShellProps) {
             </div>
             <div className="nav-stack">
               <Link className="nav-cta" href="/meet-and-greet" onClick={handleCloseMenus}>Book A Meet & Greet</Link>
-              <Link className="nav-subcta" href="/portal" onClick={handleCloseMenus}>Pet Parent Portal</Link>
+              <Link className="nav-subcta" href={portalHref} onClick={handleCloseMenus}>{portalLabel}</Link>
             </div>
           </div>
         </nav>
