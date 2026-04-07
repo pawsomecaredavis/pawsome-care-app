@@ -770,6 +770,7 @@ export default function AdminClientProfilePage({
   const focusedBookingUpdates = focusedBooking
     ? dailyUpdates.filter((update) => update.booking_id === focusedBooking.id)
     : [];
+  const isStayDetailMode = requestedBookingId > 0 && Boolean(focusedBooking);
 
   useEffect(() => {
     const preferredBookingIds = [
@@ -824,23 +825,25 @@ export default function AdminClientProfilePage({
             {successMessage ? <p className="auth-success">{successMessage}</p> : null}
             {isLoading ? <p className="portal-loading-text">Loading client profile...</p> : null}
 
-            <div className="admin-grid">
-              <article className="admin-card">
-                <span className="portal-kicker">Household ID</span>
-                <h3>{household?.id ?? "--"}</h3>
-                <p>This is the client record currently open in your admin workspace.</p>
-              </article>
-              <article className="admin-card">
-                <span className="portal-kicker">Pets</span>
-                <h3>{pets.length}</h3>
-                <p>These are the pet profiles already attached to this client household.</p>
-              </article>
-              <article className="admin-card">
-                <span className="portal-kicker">Pending Requests</span>
-                <h3>{pendingBookings.length}</h3>
-                <p>This is the approval queue that still needs your decision.</p>
-              </article>
-            </div>
+            {!isStayDetailMode ? (
+              <div className="admin-grid">
+                <article className="admin-card">
+                  <span className="portal-kicker">Household ID</span>
+                  <h3>{household?.id ?? "--"}</h3>
+                  <p>This is the client record currently open in your admin workspace.</p>
+                </article>
+                <article className="admin-card">
+                  <span className="portal-kicker">Pets</span>
+                  <h3>{pets.length}</h3>
+                  <p>These are the pet profiles already attached to this client household.</p>
+                </article>
+                <article className="admin-card">
+                  <span className="portal-kicker">Pending Requests</span>
+                  <h3>{pendingBookings.length}</h3>
+                  <p>This is the approval queue that still needs your decision.</p>
+                </article>
+              </div>
+            ) : null}
 
             {focusedBooking ? (
               <section className="admin-list-card admin-priority-card" id="selected-stay-detail">
@@ -968,6 +971,8 @@ export default function AdminClientProfilePage({
             ) : null}
 
             <div className="admin-workspace">
+              {!isStayDetailMode ? (
+                <>
               <section className="form-card admin-form-card">
                 <h2>Edit Client Profile</h2>
                 <p className="section-copy">
@@ -1135,6 +1140,8 @@ export default function AdminClientProfilePage({
                   </section>
                 </div>
               </section>
+                </>
+              ) : null}
 
               <section className="form-card admin-form-card" id="publish-daily-update">
                 <h2>Publish Daily Update</h2>
@@ -1242,6 +1249,8 @@ export default function AdminClientProfilePage({
               </section>
             </div>
 
+            {!isStayDetailMode ? (
+              <>
             <div className="admin-workspace admin-lists-grid">
               <section className="admin-list-card">
                 <h2>Pet Profiles</h2>
@@ -1359,6 +1368,8 @@ export default function AdminClientProfilePage({
                 <div className="admin-list">{dailyUpdates.map(renderDailyUpdateCard)}</div>
               )}
             </section>
+              </>
+            ) : null}
           </section>
         </div>
       </main>
