@@ -746,13 +746,17 @@ export default function AdminClientProfilePage({
     router.refresh();
   }
 
-  const pendingBookings = bookings.filter((booking) => booking.status === "pending");
+  const pendingBookings = bookings.filter(
+    (booking) => booking.status === "pending" && booking.service_type !== "meet-and-greet",
+  );
   const updateCountByBookingId = dailyUpdates.reduce<Record<number, number>>((counts, update) => {
     counts[update.booking_id] = (counts[update.booking_id] ?? 0) + 1;
     return counts;
   }, {});
   const confirmedBookings = bookings
-    .filter((booking) => booking.status === "confirmed")
+    .filter(
+      (booking) => booking.status === "confirmed" && booking.service_type !== "meet-and-greet",
+    )
     .sort((a, b) => a.start_date.localeCompare(b.start_date));
   const currentBookings = confirmedBookings.slice(0, 3);
   const bookingsNeedingFirstUpdate = confirmedBookings.filter(
@@ -767,6 +771,7 @@ export default function AdminClientProfilePage({
     bookings.find((booking) => booking.id === focusedBookingId) ??
     bookings.find((booking) => booking.id === requestedBookingId) ??
     null;
+  const focusedBookingIsMeetAndGreet = focusedBooking?.service_type === "meet-and-greet";
   const focusedBookingUpdates = focusedBooking
     ? dailyUpdates.filter((update) => update.booking_id === focusedBooking.id)
     : [];
@@ -872,8 +877,12 @@ export default function AdminClientProfilePage({
                   </article>
                   <article className="admin-card">
                     <span className="portal-kicker">Updates</span>
-                    <h3>{focusedBookingUpdates.length}</h3>
-                    <p>Published updates attached to this stay.</p>
+                    <h3>{focusedBookingIsMeetAndGreet ? "--" : focusedBookingUpdates.length}</h3>
+                    <p>
+                      {focusedBookingIsMeetAndGreet
+                        ? "Meet & greet appointments do not use daily updates."
+                        : "Published updates attached to this stay."}
+                    </p>
                   </article>
                   <article className="admin-card">
                     <span className="portal-kicker">Pet</span>
@@ -905,13 +914,15 @@ export default function AdminClientProfilePage({
                         marginTop: "14px",
                       }}
                     >
-                      <a
-                        className="button button-secondary"
-                        href="#publish-daily-update"
-                        onClick={() => setSelectedUpdateBookingId(String(focusedBooking.id))}
-                      >
-                        Publish Update for This Stay
-                      </a>
+                      {!focusedBookingIsMeetAndGreet ? (
+                        <a
+                          className="button button-secondary"
+                          href="#publish-daily-update"
+                          onClick={() => setSelectedUpdateBookingId(String(focusedBooking.id))}
+                        >
+                          Publish Update for This Stay
+                        </a>
+                      ) : null}
                       {focusedBooking.status === "pending" ? (
                         <>
                           <button
@@ -956,9 +967,14 @@ export default function AdminClientProfilePage({
                   <section className="portal-status-group">
                     <div className="portal-status-heading">
                       <h4>Updates for This Stay</h4>
-                      <span>{focusedBookingUpdates.length}</span>
+                      <span>{focusedBookingIsMeetAndGreet ? 0 : focusedBookingUpdates.length}</span>
                     </div>
-                    {focusedBookingUpdates.length === 0 ? (
+                    {focusedBookingIsMeetAndGreet ? (
+                      <p className="section-copy">
+                        Meet &amp; greet appointments are tracked as upcoming tasks only, so no daily
+                        updates are published here.
+                      </p>
+                    ) : focusedBookingUpdates.length === 0 ? (
                       <p className="section-copy">
                         No daily updates have been published for this stay yet.
                       </p>
@@ -1143,7 +1159,8 @@ export default function AdminClientProfilePage({
                 </>
               ) : null}
 
-              <section className="form-card admin-form-card" id="publish-daily-update">
+              {!focusedBookingIsMeetAndGreet ? (
+                <section className="form-card admin-form-card" id="publish-daily-update">
                 <h2>Publish Daily Update</h2>
                 <p className="section-copy">
                   Keep this simple and client-friendly: upload a few photos and leave a
@@ -1246,7 +1263,8 @@ export default function AdminClientProfilePage({
                     {isSubmittingUpdate ? "Uploading photos and publishing..." : "Publish Daily Update"}
                   </button>
                 </form>
-              </section>
+                </section>
+              ) : null}
             </div>
 
             {!isStayDetailMode ? (

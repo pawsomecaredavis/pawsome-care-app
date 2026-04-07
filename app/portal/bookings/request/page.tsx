@@ -50,6 +50,20 @@ export default function PortalRequestBookingPage() {
   const [selectedEndDate, setSelectedEndDate] = useState("");
   const now = useMemo(() => new Date(), []);
   const availabilityWindow = useMemo(() => getAvailabilityWindow(4, now), [now]);
+  const isMeetAndGreetRequest = selectedServiceType === "meet-and-greet";
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedService = params.get("service");
+
+    if (requestedService === "meet-and-greet") {
+      setSelectedServiceType("meet-and-greet");
+    }
+  }, []);
 
   useEffect(() => {
     async function loadPage() {
@@ -214,7 +228,7 @@ export default function PortalRequestBookingPage() {
     const petId = Number(formData.get("requestPetId"));
     const serviceType = selectedServiceType.trim();
     const startDate = selectedStartDate.trim();
-    const endDate = selectedEndDate.trim();
+    const endDate = (isMeetAndGreetRequest ? selectedStartDate : selectedEndDate).trim();
     const notes = String(formData.get("requestNotes") || "").trim();
     const dropOffNote = String(formData.get("requestDropOffNote") || "").trim();
     const pickUpNote = String(formData.get("requestPickUpNote") || "").trim();
@@ -230,7 +244,11 @@ export default function PortalRequestBookingPage() {
 
     if (!serviceType || !startDate || !endDate) {
       setIsSubmitting(false);
-      setErrorMessage("Please complete the service type and booking dates.");
+      setErrorMessage(
+        isMeetAndGreetRequest
+          ? "Please complete the meet & greet date."
+          : "Please complete the service type and booking dates.",
+      );
       return;
     }
 
@@ -262,9 +280,13 @@ export default function PortalRequestBookingPage() {
       return;
     }
 
-    setSuccessMessage("Booking request submitted. It is now waiting for admin approval.");
+    setSuccessMessage(
+      isMeetAndGreetRequest
+        ? "Meet & greet request submitted. It is now waiting for admin approval."
+        : "Booking request submitted. It is now waiting for admin approval.",
+    );
     form.reset();
-    setSelectedServiceType("boarding");
+    setSelectedServiceType(isMeetAndGreetRequest ? "meet-and-greet" : "boarding");
     setSelectedStartDate("");
     setSelectedEndDate("");
   }
@@ -277,8 +299,9 @@ export default function PortalRequestBookingPage() {
             <span className="eyebrow">Pet Parent Portal</span>
             <h1 className="section-title">Request Booking</h1>
             <p className="section-copy">
-              Submit a booking request here, and your sitter will review it in the admin
-              dashboard before confirming it.
+              {isMeetAndGreetRequest
+                ? "Submit your meet & greet request here, and it will show up in the admin dashboard as an upcoming appointment."
+                : "Submit a booking request here, and your sitter will review it in the admin dashboard before confirming it."}
             </p>
 
             <div className="portal-admin-cta">
@@ -300,8 +323,9 @@ export default function PortalRequestBookingPage() {
                   New requests start as <strong>pending</strong> until your sitter confirms them.
                 </p>
                 <p className="portal-subcopy">
-                  Start and end dates now stay linked to the live availability calendar below, so
-                  only currently open dates can be selected.
+                  {isMeetAndGreetRequest
+                    ? "Meet & greet requests use a single appointment date and will appear as upcoming admin tasks without the daily update workflow."
+                    : "Start and end dates now stay linked to the live availability calendar below, so only currently open dates can be selected."}
                 </p>
                 <form className="portal-form" onSubmit={handleRequestBooking}>
                   <div className="field-grid auth-grid">
@@ -340,7 +364,9 @@ export default function PortalRequestBookingPage() {
                       </select>
                     </div>
                     <div className="field field-full">
-                      <label htmlFor="requestStartDate">Start Date</label>
+                      <label htmlFor="requestStartDate">
+                        {isMeetAndGreetRequest ? "Meet & Greet Date" : "Start Date"}
+                      </label>
                       <select
                         id="requestStartDate"
                         name="requestStartDate"
@@ -350,7 +376,9 @@ export default function PortalRequestBookingPage() {
                         required
                       >
                         <option value="" disabled>
-                          Select an available start date
+                          {isMeetAndGreetRequest
+                            ? "Select an available meet & greet date"
+                            : "Select an available start date"}
                         </option>
                         {availableStartDates.map((date) => (
                           <option key={date} value={date}>
@@ -359,43 +387,53 @@ export default function PortalRequestBookingPage() {
                         ))}
                       </select>
                     </div>
-                    <div className="field field-full">
-                      <label htmlFor="requestEndDate">End Date</label>
-                      <select
-                        id="requestEndDate"
-                        name="requestEndDate"
-                        className="admin-select"
-                        value={selectedEndDate}
-                        onChange={(event) => setSelectedEndDate(event.target.value)}
-                        required
-                        disabled={!selectedStartDate || availableEndDates.length === 0}
-                      >
-                        <option value="" disabled>
-                          {selectedStartDate
-                            ? "Select an available end date"
-                            : "Choose a start date first"}
-                        </option>
-                        {availableEndDates.map((date) => (
-                          <option key={date} value={date}>
-                            {formatBookingDate(date)}
+                    {!isMeetAndGreetRequest ? (
+                      <div className="field field-full">
+                        <label htmlFor="requestEndDate">End Date</label>
+                        <select
+                          id="requestEndDate"
+                          name="requestEndDate"
+                          className="admin-select"
+                          value={selectedEndDate}
+                          onChange={(event) => setSelectedEndDate(event.target.value)}
+                          required
+                          disabled={!selectedStartDate || availableEndDates.length === 0}
+                        >
+                          <option value="" disabled>
+                            {selectedStartDate
+                              ? "Select an available end date"
+                              : "Choose a start date first"}
                           </option>
-                        ))}
-                      </select>
-                    </div>
+                          {availableEndDates.map((date) => (
+                            <option key={date} value={date}>
+                              {formatBookingDate(date)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
                     <div className="field field-full">
-                      <label htmlFor="requestNotes">Booking Notes</label>
+                      <label htmlFor="requestNotes">
+                        {isMeetAndGreetRequest ? "Meet & Greet Notes" : "Booking Notes"}
+                      </label>
                       <textarea id="requestNotes" name="requestNotes" rows={4} />
                     </div>
+                    {!isMeetAndGreetRequest ? (
+                      <>
+                        <div className="field field-full">
+                          <label htmlFor="requestDropOffNote">Drop-Off Note</label>
+                          <textarea id="requestDropOffNote" name="requestDropOffNote" rows={3} />
+                        </div>
+                        <div className="field field-full">
+                          <label htmlFor="requestPickUpNote">Pick-Up Note</label>
+                          <textarea id="requestPickUpNote" name="requestPickUpNote" rows={3} />
+                        </div>
+                      </>
+                    ) : null}
                     <div className="field field-full">
-                      <label htmlFor="requestDropOffNote">Drop-Off Note</label>
-                      <textarea id="requestDropOffNote" name="requestDropOffNote" rows={3} />
-                    </div>
-                    <div className="field field-full">
-                      <label htmlFor="requestPickUpNote">Pick-Up Note</label>
-                      <textarea id="requestPickUpNote" name="requestPickUpNote" rows={3} />
-                    </div>
-                    <div className="field field-full">
-                      <label htmlFor="requestSpecialInstructions">Special Instructions</label>
+                      <label htmlFor="requestSpecialInstructions">
+                        {isMeetAndGreetRequest ? "Questions or Special Notes" : "Special Instructions"}
+                      </label>
                       <textarea
                         id="requestSpecialInstructions"
                         name="requestSpecialInstructions"
@@ -415,7 +453,13 @@ export default function PortalRequestBookingPage() {
                       availableStartDates.length === 0
                     }
                   >
-                    {isSubmitting ? "Submitting booking request..." : "Request Booking"}
+                    {isSubmitting
+                      ? isMeetAndGreetRequest
+                        ? "Submitting meet & greet request..."
+                        : "Submitting booking request..."
+                      : isMeetAndGreetRequest
+                        ? "Request Meet & Greet"
+                        : "Request Booking"}
                   </button>
                 </form>
               </section>
