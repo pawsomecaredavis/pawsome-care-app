@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { SiteShell } from "../components/site-shell";
-import { getCurrentProfile } from "../../lib/profile";
+import { getCurrentProfile, getIsFirstTimeClient } from "../../lib/profile";
 import { supabase } from "../../lib/supabase";
 
 export default function LoginPage() {
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registeredNotice, setRegisteredNotice] = useState(false);
+  const [firstTimeNotice, setFirstTimeNotice] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -21,6 +22,7 @@ export default function LoginPage() {
 
     const params = new URLSearchParams(window.location.search);
     setRegisteredNotice(params.get("registered") === "1");
+    setFirstTimeNotice(params.get("firstTime") === "1");
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -50,13 +52,42 @@ export default function LoginPage() {
 
       const profile = user?.id ? await getCurrentProfile(user.id) : null;
       const role = profile?.role;
+      const isFirstTimeClient = getIsFirstTimeClient(user);
+      let destination = role === "admin" ? "/admin" : "/portal";
+
+      if (role !== "admin" && isFirstTimeClient) {
+        const householdResult = await supabase.rpc("get_my_household");
+        const householdRows = Array.isArray(householdResult.data)
+          ? householdResult.data
+          : householdResult.data
+            ? [householdResult.data]
+            : [];
+        const household = householdRows[0] as { id: number } | undefined;
+
+        if (!householdResult.error && household?.id) {
+          const meetAndGreetResult = await supabase
+            .from("bookings")
+            .select("id")
+            .eq("household_id", household.id)
+            .eq("service_type", "meet-and-greet")
+            .limit(1);
+
+          if (!meetAndGreetResult.error && (meetAndGreetResult.data?.length ?? 0) === 0) {
+            destination = "/portal/bookings/request?service=meet-and-greet&required=1";
+          }
+        } else {
+          destination = "/portal/bookings/request?service=meet-and-greet&required=1";
+        }
+      }
 
       setSuccessMessage(
         role === "admin"
           ? "Login successful. Redirecting to the admin dashboard..."
-          : "Login successful. Redirecting to your portal...",
+          : destination.includes("meet-and-greet")
+            ? "Login successful. Redirecting you to book your meet and greet..."
+            : "Login successful. Redirecting to your portal...",
       );
-      router.push(role === "admin" ? "/admin" : "/portal");
+      router.push(destination);
       router.refresh();
     } catch (error) {
       setErrorMessage(
@@ -83,6 +114,12 @@ export default function LoginPage() {
               <p className="auth-success">
                 Account created. If email confirmation is required, check your inbox first, then
                 log in here.
+              </p>
+            ) : null}
+            {firstTimeNotice ? (
+              <p className="portal-subcopy" style={{ marginTop: registeredNotice ? "12px" : 0 }}>
+                Because you marked yourself as a first-time client, we will send you to book your
+                meet and greet after login.
               </p>
             ) : null}
 

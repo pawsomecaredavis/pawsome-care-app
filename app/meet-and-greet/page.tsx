@@ -60,9 +60,9 @@ export default function MeetAndGreetPage() {
                 <section className="form-card">
                   <h2>How this works now</h2>
                   <p>
-                    Sign in to your portal, add your pet profile if needed, and submit a
-                    meet &amp; greet request through the booking form. This keeps your intro visit
-                    on the same admin calendar as all other upcoming work.
+                    Sign in to your portal and submit a meet &amp; greet request through the
+                    booking form. First-time clients can book this before adding a pet profile,
+                    so your intro visit stays easy to schedule.
                   </p>
                   <div className="portal-inline-actions" style={{ marginTop: "18px" }}>
                     <Link className="submit-button" href="/login">
@@ -78,8 +78,9 @@ export default function MeetAndGreetPage() {
                   <h2>What happens next?</h2>
                   <p>
                     After you sign in, the booking form will already be set to
-                    <strong> Meet &amp; Greet</strong>. Choose your pet, pick an available date,
-                    and submit the request.
+                    <strong> Meet &amp; Greet</strong>. Pick an available date and submit the
+                    request. If you already have a pet profile on file, you can attach it there,
+                    but it is not required for the first intro request.
                   </p>
                   <p className="helper-extra">
                     Meet &amp; greet requests will show up in the admin dashboard as upcoming

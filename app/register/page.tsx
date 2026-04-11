@@ -25,7 +25,9 @@ export default function RegisterPage() {
     const email = String(formData.get("email") || "").trim();
     const password = String(formData.get("password") || "");
     const confirmPassword = String(formData.get("confirmPassword") || "");
+    const firstTimeAnswer = String(formData.get("isFirstTimeClient") || "").trim();
     const phone = normalizePhoneForStorage(phoneInput);
+    const isFirstTimeClient = firstTimeAnswer === "yes";
 
     if (password !== confirmPassword) {
       setIsSubmitting(false);
@@ -39,6 +41,12 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!firstTimeAnswer) {
+      setIsSubmitting(false);
+      setErrorMessage("Please tell us whether this is your first time booking with Pawsome Care.");
+      return;
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -47,6 +55,7 @@ export default function RegisterPage() {
           full_name: fullName,
           phone,
           role: "parent",
+          is_first_time_client: isFirstTimeClient,
         },
       },
     });
@@ -65,7 +74,7 @@ export default function RegisterPage() {
 
     setSuccessMessage("Account created. Redirecting you to the login page...");
     event.currentTarget.reset();
-    router.push("/login?registered=1");
+    router.push(`/login?registered=1${isFirstTimeClient ? "&firstTime=1" : ""}`);
     router.refresh();
   }
 
@@ -77,8 +86,8 @@ export default function RegisterPage() {
             <span className="eyebrow">Create Account</span>
             <h1 className="page-title">Register as a pet parent</h1>
             <p className="page-intro">
-              Use a normal client registration flow: full name, email, mobile phone,
-              and password confirmation before entering the portal.
+              Create your portal account here, then we will guide first-time clients into
+              the meet and greet flow before they request daycare or boarding stays.
             </p>
 
             <form className="form-card auth-form" onSubmit={handleSubmit}>
@@ -100,6 +109,22 @@ export default function RegisterPage() {
                     placeholder="(530) 555-1234"
                     required
                   />
+                </div>
+                <div className="field field-full">
+                  <label htmlFor="isFirstTimeClient">Have you booked with Pawsome Care before?</label>
+                  <select
+                    id="isFirstTimeClient"
+                    name="isFirstTimeClient"
+                    className="admin-select"
+                    defaultValue=""
+                    required
+                  >
+                    <option value="" disabled>
+                      Select one
+                    </option>
+                    <option value="yes">No, I am brand new</option>
+                    <option value="no">Yes, I am an existing client</option>
+                  </select>
                 </div>
                 <div className="field field-full">
                   <label htmlFor="password">Password</label>
@@ -127,6 +152,11 @@ export default function RegisterPage() {
               {successMessage ? (
                 <p className="auth-success">{successMessage}</p>
               ) : null}
+
+              <p className="portal-subcopy" style={{ marginTop: "4px" }}>
+                Brand new clients will be routed to book a meet and greet after login. Existing
+                clients can continue straight into the normal portal flow.
+              </p>
 
               <button className="submit-button" type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Creating account..." : "Create Account"}

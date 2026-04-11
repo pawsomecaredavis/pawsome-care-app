@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { isLikelyValidPhone, normalizePhoneForStorage } from "../../lib/phone";
+import { getIsFirstTimeClient } from "../../lib/profile";
 import { supabase } from "../../lib/supabase";
 
 type Profile = {
@@ -73,6 +74,7 @@ export function PortalDemo() {
   const [portalView, setPortalView] = useState<"home" | "pets" | "contact" | "updates">("home");
   const [sessionEmail, setSessionEmail] = useState("");
   const [sessionUserId, setSessionUserId] = useState("");
+  const [isFirstTimeClient, setIsFirstTimeClient] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [household, setHousehold] = useState<Household | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
@@ -303,6 +305,7 @@ export function PortalDemo() {
 
         setSessionEmail(user?.email ?? "");
         setSessionUserId(user?.id ?? "");
+        setIsFirstTimeClient(getIsFirstTimeClient(user));
 
         if (user?.id) {
           const currentProfile = await loadProfile(user.id);
@@ -329,6 +332,7 @@ export function PortalDemo() {
           setBookings([]);
           setDailyUpdates([]);
           setDailyUpdatePhotos([]);
+          setIsFirstTimeClient(false);
         }
       } catch (error) {
         setErrorMessage(
@@ -356,6 +360,7 @@ export function PortalDemo() {
         clearMessages();
         setSessionEmail(session?.user.email ?? "");
         setSessionUserId(session?.user.id ?? "");
+        setIsFirstTimeClient(getIsFirstTimeClient(session?.user));
 
         if (session?.user.id) {
           const currentProfile = await loadProfile(session.user.id);
@@ -382,6 +387,7 @@ export function PortalDemo() {
           setBookings([]);
           setDailyUpdates([]);
           setDailyUpdatePhotos([]);
+          setIsFirstTimeClient(false);
         }
       } catch (error) {
         setErrorMessage(
@@ -434,6 +440,7 @@ export function PortalDemo() {
     setSuccessMessage("You have been logged out.");
     setSessionEmail("");
     setSessionUserId("");
+    setIsFirstTimeClient(false);
     setProfile(null);
     setHousehold(null);
     setPets([]);
@@ -734,6 +741,13 @@ export function PortalDemo() {
   const pendingBookings = bookings.filter((booking) => booking.status === "pending");
   const confirmedBookings = bookings.filter((booking) => booking.status === "confirmed");
   const completedBookings = bookings.filter((booking) => booking.status === "completed");
+  const hasMeetAndGreetRequest = bookings.some(
+    (booking) => booking.service_type === "meet-and-greet",
+  );
+  const needsMeetAndGreet = isFirstTimeClient && !hasMeetAndGreetRequest;
+  const requestBookingHref = needsMeetAndGreet
+    ? "/portal/bookings/request?service=meet-and-greet&required=1"
+    : "/portal/bookings/request";
   const nextConfirmedBooking = confirmedBookings
     .slice()
     .sort((a, b) => a.start_date.localeCompare(b.start_date))[0] ?? null;
@@ -787,6 +801,12 @@ export function PortalDemo() {
               Keep this page simple: use the quick links to manage your account, and come back
               here for the newest stay updates.
             </p>
+            {needsMeetAndGreet ? (
+              <p className="portal-home-note">
+                <strong>Next step:</strong> because you signed up as a first-time client, please
+                book your meet and greet before requesting daycare or boarding.
+              </p>
+            ) : null}
             {nextConfirmedBooking ? (
               <p className="portal-home-note">
                 <strong>Next confirmed stay:</strong>{" "}
@@ -831,8 +851,8 @@ export function PortalDemo() {
                 >
                   Pet Profiles
                 </button>
-                <Link className="button button-secondary" href="/portal/bookings/request">
-                  Request Booking
+                <Link className="button button-secondary" href={requestBookingHref}>
+                  {needsMeetAndGreet ? "Book Meet & Greet" : "Request Booking"}
                 </Link>
                 <button
                   className="button button-secondary"

@@ -14,6 +14,7 @@ import {
   getContiguousAvailableDates,
   isRangeAvailable,
 } from "../../../../lib/availability";
+import { getCurrentProfile, getIsFirstTimeClient } from "../../../../lib/profile";
 import { supabase } from "../../../../lib/supabase";
 
 type Profile = {
@@ -33,11 +34,17 @@ type Pet = {
   name: string;
 };
 
+type ExistingBooking = {
+  id: number;
+  service_type: string;
+};
+
 export default function PortalRequestBookingPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [household, setHousehold] = useState<Household | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
+  const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
   const [availabilityRows, setAvailabilityRows] = useState<AvailabilityDayStatus[]>([]);
   const [availabilityMonths, setAvailabilityMonths] = useState<AvailabilityMonth[]>([]);
   const [availabilityUpdated, setAvailabilityUpdated] = useState("recently");
@@ -45,12 +52,18 @@ export default function PortalRequestBookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [isFirstTimeClient, setIsFirstTimeClient] = useState(false);
   const [selectedServiceType, setSelectedServiceType] = useState("boarding");
   const [selectedStartDate, setSelectedStartDate] = useState("");
   const [selectedEndDate, setSelectedEndDate] = useState("");
   const now = useMemo(() => new Date(), []);
   const availabilityWindow = useMemo(() => getAvailabilityWindow(4, now), [now]);
   const isMeetAndGreetRequest = selectedServiceType === "meet-and-greet";
+  const hasMeetAndGreetRequest = useMemo(
+    () => existingBookings.some((booking) => booking.service_type === "meet-and-greet"),
+    [existingBookings],
+  );
+  const mustBookMeetAndGreet = isFirstTimeClient && !hasMeetAndGreetRequest;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -81,18 +94,20 @@ export default function PortalRequestBookingPage() {
         return;
       }
 
-      const profileResult = await supabase.rpc("get_my_profile");
-      const profileRow = Array.isArray(profileResult.data)
-        ? profileResult.data[0]
-        : profileResult.data;
+      setIsFirstTimeClient(getIsFirstTimeClient(user));
 
-      if (profileResult.error || !profileRow) {
-        setErrorMessage(profileResult.error?.message || "Unable to load your profile.");
+      let currentProfile: Profile | null = null;
+
+      try {
+        currentProfile = await getCurrentProfile(user.id);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to load your profile.",
+        );
         setIsLoading(false);
         return;
       }
 
-      const currentProfile = profileRow as Profile;
       setProfile(currentProfile);
 
       if (currentProfile.role === "admin") {
@@ -134,6 +149,19 @@ export default function PortalRequestBookingPage() {
       }
 
       setPets((petResult.data as Pet[]) ?? []);
+
+      const bookingResult = await supabase
+        .from("bookings")
+        .select("id, service_type")
+        .eq("household_id", currentHousehold.id);
+
+      if (bookingResult.error) {
+        setErrorMessage(bookingResult.error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      setExistingBookings((bookingResult.data as ExistingBooking[]) ?? []);
 
       try {
         const { data, error } = await supabase.rpc("get_public_availability", {
@@ -190,6 +218,12 @@ export default function PortalRequestBookingPage() {
   }, [availableStartDates]);
 
   useEffect(() => {
+    if (mustBookMeetAndGreet) {
+      setSelectedServiceType("meet-and-greet");
+    }
+  }, [mustBookMeetAndGreet]);
+
+  useEffect(() => {
     if (!selectedStartDate) {
       setSelectedEndDate("");
       return;
@@ -225,7 +259,8 @@ export default function PortalRequestBookingPage() {
     setIsSubmitting(true);
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const petId = Number(formData.get("requestPetId"));
+    const rawPetId = String(formData.get("requestPetId") || "").trim();
+    const petId = rawPetId ? Number(rawPetId) : null;
     const serviceType = selectedServiceType.trim();
     const startDate = selectedStartDate.trim();
     const endDate = (isMeetAndGreetRequest ? selectedStartDate : selectedEndDate).trim();
@@ -236,7 +271,15 @@ export default function PortalRequestBookingPage() {
       formData.get("requestSpecialInstructions") || "",
     ).trim();
 
-    if (!petId) {
+    if (mustBookMeetAndGreet && serviceType !== "meet-and-greet") {
+      setIsSubmitting(false);
+      setErrorMessage(
+        "First-time clients need to request their meet & greet before booking daycare or boarding.",
+      );
+      return;
+    }
+
+    if (!isMeetAndGreetRequest && !petId) {
       setIsSubmitting(false);
       setErrorMessage("Please choose which pet this booking request is for.");
       return;
@@ -262,7 +305,7 @@ export default function PortalRequestBookingPage() {
 
     const { error } = await supabase.from("bookings").insert({
       household_id: household.id,
-      pet_id: petId,
+      pet_id: isMeetAndGreetRequest ? petId : petId,
       service_type: serviceType,
       start_date: startDate,
       end_date: endDate,
@@ -282,13 +325,17 @@ export default function PortalRequestBookingPage() {
 
     setSuccessMessage(
       isMeetAndGreetRequest
-        ? "Meet & greet request submitted. It is now waiting for admin approval."
+        ? "Meet & greet request submitted. We will review it and follow up with you soon."
         : "Booking request submitted. It is now waiting for admin approval.",
     );
     form.reset();
     setSelectedServiceType(isMeetAndGreetRequest ? "meet-and-greet" : "boarding");
     setSelectedStartDate("");
     setSelectedEndDate("");
+    setExistingBookings((current) => [
+      ...current,
+      { id: Date.now(), service_type: serviceType },
+    ]);
   }
 
   return (
@@ -299,7 +346,9 @@ export default function PortalRequestBookingPage() {
             <span className="eyebrow">Pet Parent Portal</span>
             <h1 className="section-title">Request Booking</h1>
             <p className="section-copy">
-              {isMeetAndGreetRequest
+              {mustBookMeetAndGreet
+                ? "Because you signed up as a first-time client, please request your meet and greet here before booking daycare or boarding."
+                : isMeetAndGreetRequest
                 ? "Submit your meet & greet request here, and it will show up in the admin dashboard as an upcoming appointment."
                 : "Submit a booking request here, and your sitter will review it in the admin dashboard before confirming it."}
             </p>
@@ -313,6 +362,12 @@ export default function PortalRequestBookingPage() {
             {isLoading ? <p className="portal-loading-text">Loading your booking form...</p> : null}
             {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
             {successMessage ? <p className="auth-success">{successMessage}</p> : null}
+            {mustBookMeetAndGreet ? (
+              <p className="portal-subcopy" style={{ marginTop: "6px" }}>
+                First-time clients start with a meet and greet. After that request is on file,
+                you can come back here for daycare or boarding.
+              </p>
+            ) : null}
 
             <div className="portal-task-layout">
               <section className="form-card admin-form-card">
@@ -324,22 +379,28 @@ export default function PortalRequestBookingPage() {
                 </p>
                 <p className="portal-subcopy">
                   {isMeetAndGreetRequest
-                    ? "Meet & greet requests use a single appointment date and will appear as upcoming admin tasks without the daily update workflow."
+                    ? "Meet & greet requests use a single appointment date, do not require a pet profile first, and will appear as upcoming admin tasks without the daily update workflow."
                     : "Start and end dates now stay linked to the live availability calendar below, so only currently open dates can be selected."}
                 </p>
                 <form className="portal-form" onSubmit={handleRequestBooking}>
                   <div className="field-grid auth-grid">
                     <div className="field field-full">
-                      <label htmlFor="requestPetId">Pet</label>
+                      <label htmlFor="requestPetId">
+                        {isMeetAndGreetRequest ? "Pet (Optional for Meet & Greet)" : "Pet"}
+                      </label>
                       <select
                         id="requestPetId"
                         name="requestPetId"
                         className="admin-select"
                         defaultValue=""
-                        required
+                        required={!isMeetAndGreetRequest}
                       >
-                        <option value="" disabled>
-                          Select a pet
+                        <option value="">
+                          {isMeetAndGreetRequest
+                            ? pets.length === 0
+                              ? "No pet profile added yet"
+                              : "No pet profile selected"
+                            : "Select a pet"}
                         </option>
                         {pets.map((pet) => (
                           <option key={pet.id} value={pet.id}>
@@ -357,10 +418,17 @@ export default function PortalRequestBookingPage() {
                         value={selectedServiceType}
                         onChange={(event) => setSelectedServiceType(event.target.value)}
                         required
+                        disabled={mustBookMeetAndGreet}
                       >
-                        <option value="boarding">Boarding</option>
-                        <option value="daycare">Daycare</option>
-                        <option value="meet-and-greet">Meet &amp; Greet</option>
+                        {mustBookMeetAndGreet ? (
+                          <option value="meet-and-greet">Meet &amp; Greet</option>
+                        ) : (
+                          <>
+                            <option value="boarding">Boarding</option>
+                            <option value="daycare">Daycare</option>
+                            <option value="meet-and-greet">Meet &amp; Greet</option>
+                          </>
+                        )}
                       </select>
                     </div>
                     <div className="field field-full">
@@ -441,6 +509,12 @@ export default function PortalRequestBookingPage() {
                       />
                     </div>
                   </div>
+                  {!isMeetAndGreetRequest && pets.length === 0 ? (
+                    <p className="portal-subcopy" style={{ marginTop: "16px" }}>
+                      Requesting daycare or boarding requires at least one pet profile first.{" "}
+                      <Link href="/portal/pets/new">Add your pet profile here</Link>.
+                    </p>
+                  ) : null}
                   <button
                     className="submit-button"
                     type="submit"
@@ -448,9 +522,9 @@ export default function PortalRequestBookingPage() {
                       isSubmitting ||
                       isLoading ||
                       !household ||
-                      pets.length === 0 ||
                       profile?.role === "admin" ||
-                      availableStartDates.length === 0
+                      availableStartDates.length === 0 ||
+                      (!isMeetAndGreetRequest && pets.length === 0)
                     }
                   >
                     {isSubmitting
@@ -472,13 +546,16 @@ export default function PortalRequestBookingPage() {
                   <strong> pending</strong>.
                 </p>
                 <p>
-                  Once approved, the same booking will show up in your portal with the updated
-                  status.
+                  {isMeetAndGreetRequest
+                    ? "We will review your meet and greet request and follow up with you about the next step."
+                    : "Once approved, the same booking will show up in your portal with the updated status."}
                 </p>
                 <div className="portal-mini-steps">
-                  <span>1. Choose pet and available dates</span>
+                  <span>
+                    {isMeetAndGreetRequest ? "1. Choose a date" : "1. Choose pet and available dates"}
+                  </span>
                   <span>2. Submit request</span>
-                  <span>3. Wait for approval</span>
+                  <span>{isMeetAndGreetRequest ? "3. Wait for follow-up" : "3. Wait for approval"}</span>
                 </div>
                 {selectedStartDate ? (
                   <p style={{ marginTop: "18px", color: "#7c4724", fontWeight: 600 }}>
