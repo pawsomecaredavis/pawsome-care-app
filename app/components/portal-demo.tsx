@@ -83,6 +83,20 @@ export function PortalDemo() {
   const [dailyUpdatePhotos, setDailyUpdatePhotos] = useState<DailyUpdatePhoto[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [registeredNotice, setRegisteredNotice] = useState(false);
+  const [firstTimeNotice, setFirstTimeNotice] = useState(false);
+  const [resetNotice, setResetNotice] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setRegisteredNotice(params.get("registered") === "1");
+    setFirstTimeNotice(params.get("firstTime") === "1");
+    setResetNotice(params.get("reset") === "1");
+  }, []);
 
   useEffect(() => {
     if (sessionEmail && profile?.role === "admin") {
@@ -1190,18 +1204,37 @@ export function PortalDemo() {
 
   return (
     <section className="portal-access">
-      <div className="portal-access-copy">
-        <span className="eyebrow">Secure Access</span>
-        <h2 className="portal-pet-name">Log in to your portal account</h2>
-        <p className="portal-subcopy">
-          Your portal now uses a normal account flow. Sign in if you already have
-          an account, or open the separate Create Account page to register as a
-          new pet parent.
-        </p>
-        {isLoading ? <p className="portal-loading-text">Checking your portal session...</p> : null}
-        {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
-        {successMessage ? <p className="auth-success">{successMessage}</p> : null}
-      </div>
+        <div className="portal-access-copy">
+          <span className="eyebrow">Secure Access</span>
+          <h2 className="portal-pet-name">Log in to your portal account</h2>
+          <p className="portal-subcopy">
+            Existing clients can sign in here. If you still need to create an online
+            account, use the setup guide on the right to choose the right path first.
+          </p>
+          {registeredNotice ? (
+            <p className="auth-success">
+              Account created. If email confirmation is required, check your inbox first, then
+              log in here.
+            </p>
+          ) : null}
+          {firstTimeNotice ? (
+            <p className="portal-subcopy" style={{ marginTop: registeredNotice ? "12px" : 0 }}>
+              Because you marked yourself as a first-time client, we will guide you to book your
+              meet and greet after login.
+            </p>
+          ) : null}
+          {resetNotice ? (
+            <p
+              className="auth-success"
+              style={{ marginTop: registeredNotice || firstTimeNotice ? "12px" : 0 }}
+            >
+              Password updated. You can log in with your new password now.
+            </p>
+          ) : null}
+          {isLoading ? <p className="portal-loading-text">Checking your portal session...</p> : null}
+          {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
+          {successMessage ? <p className="auth-success">{successMessage}</p> : null}
+        </div>
 
       <div className="portal-auth-shell">
         <form className="form-card portal-form" onSubmit={handleLogin}>
@@ -1211,36 +1244,66 @@ export function PortalDemo() {
               <label htmlFor="portalEmail">Email</label>
               <input type="email" id="portalEmail" name="portalEmail" required />
             </div>
-            <div className="field field-full">
-              <label htmlFor="portalPassword">Password</label>
-              <input
-                type="password"
-                id="portalPassword"
-                name="portalPassword"
-                minLength={6}
-                required
-              />
+              <div className="field field-full">
+                <label htmlFor="portalPassword">Password</label>
+                <input
+                  type="password"
+                  id="portalPassword"
+                  name="portalPassword"
+                  minLength={6}
+                  required
+                />
+              </div>
             </div>
-          </div>
-          <button className="submit-button" type="submit" disabled={isSubmittingLogin}>
-            {isSubmittingLogin ? "Logging in..." : "Log In"}
-          </button>
-        </form>
+            <div className="portal-password-help">
+              <p className="portal-password-help-text">
+                Forgot your password? Send yourself a reset email, then come back here once your
+                new password is ready.
+              </p>
+            </div>
+            <div className="portal-auth-actions">
+              <button className="submit-button" type="submit" disabled={isSubmittingLogin}>
+                {isSubmittingLogin ? "Logging in..." : "Log In"}
+              </button>
+              <Link
+                className="button button-secondary portal-inline-link portal-auth-secondary"
+                href="/forgot-password"
+              >
+                Reset Password
+              </Link>
+            </div>
+          </form>
 
-        <div className="form-card portal-form portal-register-card">
-          <h3>Need a new account?</h3>
-          <p className="portal-subcopy">
-            Start with a dedicated registration page so clients can follow a more
-            familiar sign-up flow with phone number and password confirmation.
-          </p>
-          <ul className="portal-list">
-            <li>Enter full name, email, and mobile phone number.</li>
-            <li>Create and confirm your password.</li>
-            <li>Return to the login page after email confirmation if needed.</li>
-          </ul>
-          <Link className="submit-button portal-inline-link" href="/register">
-            Create Account
-          </Link>
+          <div className="form-card portal-form portal-register-card">
+            <h3>Need a new account?</h3>
+            <p className="portal-subcopy">
+              Use this setup path if you have not created your portal login yet.
+            </p>
+            <div className="portal-entry-guide">
+              <div className="portal-entry-guide-item">
+                <p className="portal-entry-guide-title">Brand-new client</p>
+                <p className="portal-entry-guide-copy">
+                  Create your account, choose that you are brand new, and we will guide you to
+                  book a meet and greet before daycare or boarding.
+                </p>
+              </div>
+              <div className="portal-entry-guide-item">
+                <p className="portal-entry-guide-title">Existing offline client</p>
+                <p className="portal-entry-guide-copy">
+                  Create your portal account too, then choose that you have booked before so you
+                  can continue straight into the normal portal flow.
+                </p>
+              </div>
+            </div>
+            <ul className="portal-list">
+                <li>Enter full name, email, and mobile phone number.</li>
+              <li>Create and confirm your password.</li>
+              <li>Select whether you are brand new or an existing client.</li>
+              <li>Return to this portal page after email confirmation if needed.</li>
+            </ul>
+            <Link className="submit-button portal-inline-link" href="/register">
+              Create Account
+            </Link>
         </div>
       </div>
     </section>

@@ -124,7 +124,6 @@ export function SiteShell({ children }: SiteShellProps) {
                 <span className="nav-dropdown-caret">&#9662;</span>
               </button>
               <div className="nav-dropdown-menu">
-                <Link href="/about" onClick={handleCloseMenus}>About Us</Link>
                 <Link href="/about#mission" onClick={handleCloseMenus}>Our Mission</Link>
                 <Link href="/about#team" onClick={handleCloseMenus}>Meet the Team</Link>
               </div>

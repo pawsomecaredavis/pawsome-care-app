@@ -64,6 +64,40 @@ type DailyUpdatePhoto = {
   created_at: string;
 };
 
+function formatServiceLabel(serviceType: string) {
+  if (serviceType === "meet-and-greet") {
+    return "Meet & Greet";
+  }
+
+  return serviceType
+    .split("-")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatDayKey(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+  }).format(date);
+}
+
+function formatFriendlyDate(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function AdminClientProfilePage({
   params,
 }: {
@@ -228,6 +262,43 @@ export default function AdminClientProfilePage({
     }
 
     return "Client Profile";
+  }
+
+  function getClientGreetingName() {
+    if (household?.client_name?.trim()) {
+      return household.client_name.trim();
+    }
+
+    if (household?.contact_email?.trim()) {
+      return household.contact_email.trim().split("@")[0];
+    }
+
+    return "there";
+  }
+
+  function getFocusedStayMailtoHref() {
+    if (!focusedBooking || !household?.contact_email) {
+      return "";
+    }
+
+    const recipient = household.contact_email.trim();
+    const petLabel = focusedBooking.pet_name || "your pet";
+    const friendlyDate = formatFriendlyDate(today);
+    const subject = `Pawsome Care update for ${petLabel} - ${friendlyDate}`;
+    const body = [
+      `Hi ${getClientGreetingName()},`,
+      "",
+      `Here is today’s update for ${petLabel}.`,
+      "",
+      "I attached the latest stay update PDF with photos and notes from today.",
+      "",
+      "Please let me know if you have any questions.",
+      "",
+      "Best,",
+      "Pawsome Care",
+    ].join("\n");
+
+    return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
   function getBookingGroups() {
@@ -775,6 +846,13 @@ export default function AdminClientProfilePage({
   const focusedBookingUpdates = focusedBooking
     ? dailyUpdates.filter((update) => update.booking_id === focusedBooking.id)
     : [];
+  const today = formatDayKey(new Date());
+  const focusedBookingTodaysUpdates = focusedBookingUpdates.filter(
+    (update) => formatDayKey(new Date(update.created_at)) === today,
+  );
+  const canExportFocusedBookingPdf =
+    !focusedBookingIsMeetAndGreet &&
+    Boolean(focusedBooking && focusedBookingTodaysUpdates.length > 0);
   const isStayDetailMode = requestedBookingId > 0 && Boolean(focusedBooking);
 
   useEffect(() => {
@@ -799,6 +877,118 @@ export default function AdminClientProfilePage({
     });
   }, [bookings, dailyUpdates, requestedBookingId]);
 
+  function handleSaveFocusedStayPdf() {
+    if (typeof window === "undefined" || !focusedBooking) {
+      return;
+    }
+
+    if (focusedBookingTodaysUpdates.length === 0) {
+      setErrorMessage("Publish today’s update for this stay before saving the PDF.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=960,height=720");
+
+    if (!printWindow) {
+      setErrorMessage("Unable to open the print window for stay PDF export.");
+      return;
+    }
+
+    const updateMarkup = focusedBookingTodaysUpdates
+      .map((update) => {
+        const updatePhotos = getUpdatePhotos(update.id);
+
+        return `
+          <article style="padding:18px 0;border-top:1px solid #eadfd4;">
+            <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#8f5a28;">
+              ${escapeHtml(
+                new Date(update.created_at).toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                }),
+              )}
+            </p>
+            <h2 style="margin:0 0 8px;font-size:22px;color:#241814;">
+              ${escapeHtml(update.pet_name || "Pet Update")}
+            </h2>
+            <p style="margin:0 0 8px;color:#5d493e;">
+              ${escapeHtml(update.booking_label || "Booking update")}
+            </p>
+            <div style="padding:16px 18px;background:#fff8ef;border-radius:16px;border:1px solid rgba(184,102,44,0.14);line-height:1.8;color:#241814;">
+              ${escapeHtml(update.message)}
+            </div>
+            ${
+              updatePhotos.length > 0
+                ? `
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:14px;">
+                    ${updatePhotos
+                      .map(
+                        (photo) => `
+                          <img
+                            src="${escapeHtml(photo.image_url)}"
+                            alt="Daily update photo"
+                            style="width:100%;height:180px;object-fit:cover;border-radius:16px;display:block;"
+                          />
+                        `,
+                      )
+                      .join("")}
+                  </div>
+                `
+                : ""
+            }
+          </article>
+        `;
+      })
+      .join("");
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <title>${escapeHtml(
+            `${household?.client_name || household?.contact_email || "Client"} ${focusedBooking.pet_name || "Stay"} Update ${today}`,
+          )}</title>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: Arial, sans-serif; padding: 32px; color: #241814; background: #fffdf9; }
+            h1, h2, h3 { margin: 0; }
+            .sheet { max-width: 760px; margin: 0 auto; }
+            .card { border: 1px solid #eadfd4; border-radius: 24px; padding: 24px; margin-top: 24px; }
+            @media print {
+              body { padding: 0; }
+              .card { break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <h1 style="font-size:34px;">Pawsome Care Stay Update</h1>
+            <p style="margin:10px 0 0;color:#5d493e;">
+              ${escapeHtml(household?.client_name || household?.contact_email || `Household #${householdId}`)}
+            </p>
+            <p style="margin:8px 0 0;color:#7b6b5f;">
+              ${escapeHtml(focusedBooking.pet_name || "Pet")} | ${escapeHtml(formatServiceLabel(focusedBooking.service_type))}
+            </p>
+            <p style="margin:8px 0 0;color:#7b6b5f;">Stay dates: ${escapeHtml(`${focusedBooking.start_date} to ${focusedBooking.end_date}`)}</p>
+
+            <section class="card">
+              <h2 style="font-size:24px;">Today&apos;s Published Updates</h2>
+              ${updateMarkup}
+            </section>
+          </div>
+          <script>
+            window.onload = function () {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
+
   return (
     <SiteShell>
       <main className="page-main">
@@ -807,15 +997,20 @@ export default function AdminClientProfilePage({
             <span className="eyebrow">Client Profile</span>
             <h1 className="section-title">{getClientLabel()}</h1>
             <p className="section-copy">
-              This household page is where bookings, care updates, and profile editing
-              will live next. For now, it gives you one place to review the household
-              contact details and current pets.
+              {isStayDetailMode
+                ? "This stay is in focus now, so the page stays centered on the current booking, update form, and update history."
+                : "Use this client workspace to update contact details, review open booking tasks, and jump into any specific stay."}
             </p>
 
             <div className="portal-admin-cta">
               <Link className="button button-secondary" href="/admin/clients">
                 Back to Client List
               </Link>
+              {isStayDetailMode && householdId ? (
+                <Link className="button button-secondary" href={`/admin/clients/${householdId}`}>
+                  Open Full Client Workspace
+                </Link>
+              ) : null}
               <button
                 className="button button-secondary"
                 type="button"
@@ -833,9 +1028,9 @@ export default function AdminClientProfilePage({
             {!isStayDetailMode ? (
               <div className="admin-grid">
                 <article className="admin-card">
-                  <span className="portal-kicker">Household ID</span>
-                  <h3>{household?.id ?? "--"}</h3>
-                  <p>This is the client record currently open in your admin workspace.</p>
+                  <span className="portal-kicker">Contact Email</span>
+                  <h3>{household?.contact_email || "Not added yet"}</h3>
+                  <p>This is the address you can use for booking and update follow-up.</p>
                 </article>
                 <article className="admin-card">
                   <span className="portal-kicker">Pets</span>
@@ -843,9 +1038,9 @@ export default function AdminClientProfilePage({
                   <p>These are the pet profiles already attached to this client household.</p>
                 </article>
                 <article className="admin-card">
-                  <span className="portal-kicker">Pending Requests</span>
-                  <h3>{pendingBookings.length}</h3>
-                  <p>This is the approval queue that still needs your decision.</p>
+                  <span className="portal-kicker">Open Queue</span>
+                  <h3>{pendingBookings.length + bookingsNeedingFirstUpdate.length}</h3>
+                  <p>Pending requests and first-update tasks stay grouped together here.</p>
                 </article>
               </div>
             ) : null}
@@ -856,7 +1051,7 @@ export default function AdminClientProfilePage({
                   <div>
                     <span className="portal-kicker">Selected Stay</span>
                     <h2 style={{ margin: "10px 0 0" }}>
-                      {focusedBooking.pet_name || "Pet Booking"} | {focusedBooking.service_type}
+                      {focusedBooking.pet_name || "Pet Booking"} | {formatServiceLabel(focusedBooking.service_type)}
                     </h2>
                   </div>
                   <span className={`status-pill status-pill-${focusedBooking.status}`}>
@@ -887,8 +1082,19 @@ export default function AdminClientProfilePage({
                   <article className="admin-card">
                     <span className="portal-kicker">Pet</span>
                     <h3>{focusedBooking.pet_name || "Not linked yet"}</h3>
-                    <p>Household #{focusedBooking.household_id}</p>
+                    <p>{household?.contact_email || household?.contact_phone || "No contact details yet"}</p>
                   </article>
+                  {!focusedBookingIsMeetAndGreet ? (
+                    <article className="admin-card">
+                      <span className="portal-kicker">Today&apos;s Send Status</span>
+                      <h3>{focusedBookingTodaysUpdates.length > 0 ? "Ready" : "Waiting"}</h3>
+                      <p>
+                        {focusedBookingTodaysUpdates.length > 0
+                          ? `This stay has ${focusedBookingTodaysUpdates.length} update${focusedBookingTodaysUpdates.length === 1 ? "" : "s"} published today.`
+                          : "Publish today’s update first, then send the stay PDF from this page."}
+                      </p>
+                    </article>
+                  ) : null}
                 </div>
                 <div className="admin-list" style={{ marginTop: "18px" }}>
                   <article className="admin-list-item">
@@ -916,7 +1122,7 @@ export default function AdminClientProfilePage({
                     >
                       {!focusedBookingIsMeetAndGreet ? (
                         <a
-                          className="button button-secondary"
+                          className="button button-primary"
                           href="#publish-daily-update"
                           onClick={() => setSelectedUpdateBookingId(String(focusedBooking.id))}
                         >
@@ -959,6 +1165,16 @@ export default function AdminClientProfilePage({
                           {isUpdatingBookingId === focusedBooking.id ? "Saving..." : "Mark Completed"}
                         </button>
                       ) : null}
+                      {household?.contact_email ? (
+                        <a className="button button-secondary" href={getFocusedStayMailtoHref()}>
+                          Open Email Draft
+                        </a>
+                      ) : null}
+                      {canExportFocusedBookingPdf ? (
+                        <button className="button button-secondary" type="button" onClick={handleSaveFocusedStayPdf}>
+                          Save Stay PDF
+                        </button>
+                      ) : null}
                     </div>
                   </article>
                 </div>
@@ -990,7 +1206,7 @@ export default function AdminClientProfilePage({
               {!isStayDetailMode ? (
                 <>
               <section className="form-card admin-form-card">
-                <h2>Edit Client Profile</h2>
+                <h2>Client Contact</h2>
                 <p className="section-copy">
                   Update the client&apos;s contact email and phone number here so booking
                   communication stays current.
@@ -1025,13 +1241,13 @@ export default function AdminClientProfilePage({
                     type="submit"
                     disabled={isSavingHousehold || isLoading || !household}
                   >
-                    {isSavingHousehold ? "Saving profile..." : "Save Client Profile"}
+                    {isSavingHousehold ? "Saving contact..." : "Save Contact Details"}
                   </button>
                 </form>
               </section>
 
               <section className="form-card admin-form-card">
-                <h2>Booking Attention</h2>
+                <h2>Current Client Queue</h2>
                 <p className="section-copy">
                   Start here when you open a client. Pending requests and current confirmed stays
                   stay at the top so you can act quickly.
@@ -1054,10 +1270,10 @@ export default function AdminClientProfilePage({
                               <strong>{booking.pet_name || "Pet Booking"}</strong>
                               <span className="status-pill status-pill-attention">No update yet</span>
                             </div>
-                            <p>{booking.service_type}</p>
+                            <p>{formatServiceLabel(booking.service_type)}</p>
                             <p>{booking.start_date} to {booking.end_date}</p>
                             <a
-                              className="button button-secondary"
+                              className="button button-primary"
                               href="#publish-daily-update"
                               onClick={() => setSelectedUpdateBookingId(String(booking.id))}
                             >
@@ -1084,7 +1300,7 @@ export default function AdminClientProfilePage({
                               <strong>{booking.pet_name || "Pet Booking"}</strong>
                               <span className="status-pill status-pill-pending">pending</span>
                             </div>
-                            <p>{booking.service_type}</p>
+                            <p>{formatServiceLabel(booking.service_type)}</p>
                             <p>{booking.start_date} to {booking.end_date}</p>
                             <div
                               style={{
@@ -1136,19 +1352,27 @@ export default function AdminClientProfilePage({
                               <strong>{booking.pet_name || "Pet Booking"}</strong>
                               <span className="status-pill status-pill-confirmed">confirmed</span>
                             </div>
-                            <p>{booking.service_type}</p>
+                            <p>{formatServiceLabel(booking.service_type)}</p>
                             <p>{booking.start_date} to {booking.end_date}</p>
                             <p>
                               Published updates: <strong>{updateCountByBookingId[booking.id] ?? 0}</strong>
                             </p>
-                            <button
-                              className="button button-secondary"
-                              type="button"
-                              onClick={() => void handleUpdateBookingStatus(booking.id, "completed")}
-                              disabled={isUpdatingBookingId === booking.id}
-                            >
-                              {isUpdatingBookingId === booking.id ? "Saving..." : "Mark Completed"}
-                            </button>
+                            <div className="portal-admin-cta">
+                              <Link
+                                className="button button-secondary"
+                                href={`/admin/clients/${booking.household_id}?bookingId=${booking.id}#selected-stay-detail`}
+                              >
+                                Open Stay Detail
+                              </Link>
+                              <button
+                                className="button button-secondary"
+                                type="button"
+                                onClick={() => void handleUpdateBookingStatus(booking.id, "completed")}
+                                disabled={isUpdatingBookingId === booking.id}
+                              >
+                                {isUpdatingBookingId === booking.id ? "Saving..." : "Mark Completed"}
+                              </button>
+                            </div>
                           </article>
                         ))}
                       </div>
@@ -1194,50 +1418,62 @@ export default function AdminClientProfilePage({
 
                 <form onSubmit={handleCreateDailyUpdate}>
                   <div className="field-grid admin-field-grid">
-                    <div className="field field-full">
-                      <label htmlFor="updateBookingId">Booking</label>
-                      <select
-                        id="updateBookingId"
-                        name="updateBookingId"
-                        className="admin-select"
-                        required
-                        value={selectedUpdateBookingId}
-                        onChange={(event) => setSelectedUpdateBookingId(event.target.value)}
-                      >
-                        <option value="" disabled>
-                          Select a booking
-                        </option>
-                        {bookingsNeedingFirstUpdate.length > 0 ? (
-                          <optgroup label="Needs First Update">
-                            {bookingsNeedingFirstUpdate.map((booking) => (
-                              <option key={booking.id} value={booking.id}>
-                                {booking.pet_name || "Pet"} | {booking.service_type} | {booking.start_date}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ) : null}
-                        {confirmedBookingsWithUpdates.length > 0 ? (
-                          <optgroup label="Confirmed Stays">
-                            {confirmedBookingsWithUpdates.map((booking) => (
-                              <option key={booking.id} value={booking.id}>
-                                {booking.pet_name || "Pet"} | {booking.service_type} | {booking.start_date}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ) : null}
-                        {bookings.filter((booking) => booking.status !== "confirmed").length > 0 ? (
-                          <optgroup label="Other Bookings">
-                            {bookings
-                              .filter((booking) => booking.status !== "confirmed")
-                              .map((booking) => (
+                    {isStayDetailMode && focusedBooking ? (
+                      <div className="field field-full">
+                        <label>Booking</label>
+                        <input
+                          type="text"
+                          value={`${focusedBooking.pet_name || "Pet"} | ${formatServiceLabel(focusedBooking.service_type)} | ${focusedBooking.start_date}`}
+                          readOnly
+                        />
+                        <input type="hidden" name="updateBookingId" value={focusedBooking.id} />
+                      </div>
+                    ) : (
+                      <div className="field field-full">
+                        <label htmlFor="updateBookingId">Booking</label>
+                        <select
+                          id="updateBookingId"
+                          name="updateBookingId"
+                          className="admin-select"
+                          required
+                          value={selectedUpdateBookingId}
+                          onChange={(event) => setSelectedUpdateBookingId(event.target.value)}
+                        >
+                          <option value="" disabled>
+                            Select a booking
+                          </option>
+                          {bookingsNeedingFirstUpdate.length > 0 ? (
+                            <optgroup label="Needs First Update">
+                              {bookingsNeedingFirstUpdate.map((booking) => (
                                 <option key={booking.id} value={booking.id}>
-                                  {booking.pet_name || "Pet"} | {booking.service_type} | {booking.start_date} | {booking.status}
+                                  {booking.pet_name || "Pet"} | {formatServiceLabel(booking.service_type)} | {booking.start_date}
                                 </option>
                               ))}
-                          </optgroup>
-                        ) : null}
-                      </select>
-                    </div>
+                            </optgroup>
+                          ) : null}
+                          {confirmedBookingsWithUpdates.length > 0 ? (
+                            <optgroup label="Confirmed Stays">
+                              {confirmedBookingsWithUpdates.map((booking) => (
+                                <option key={booking.id} value={booking.id}>
+                                  {booking.pet_name || "Pet"} | {formatServiceLabel(booking.service_type)} | {booking.start_date}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : null}
+                          {bookings.filter((booking) => booking.status !== "confirmed").length > 0 ? (
+                            <optgroup label="Other Bookings">
+                              {bookings
+                                .filter((booking) => booking.status !== "confirmed")
+                                .map((booking) => (
+                                  <option key={booking.id} value={booking.id}>
+                                    {booking.pet_name || "Pet"} | {formatServiceLabel(booking.service_type)} | {booking.start_date} | {booking.status}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ) : null}
+                        </select>
+                      </div>
+                    )}
                     <div className="field field-full">
                       <label htmlFor="updateMessage">Message</label>
                       <textarea id="updateMessage" name="updateMessage" rows={5} />
@@ -1324,7 +1560,7 @@ export default function AdminClientProfilePage({
                           {group.items.map((booking) => (
                             <article className="admin-list-item" key={booking.id}>
                               <div className="portal-card-topline">
-                                <strong>{booking.service_type}</strong>
+                                <strong>{formatServiceLabel(booking.service_type)}</strong>
                                 <span className={`status-pill status-pill-${booking.status}`}>
                                   {booking.status}
                                 </span>

@@ -72,9 +72,9 @@ export default function RegisterPage() {
       return;
     }
 
-    setSuccessMessage("Account created. Redirecting you to the login page...");
+    setSuccessMessage("Account created. Redirecting you back to the portal...");
     event.currentTarget.reset();
-    router.push(`/login?registered=1${isFirstTimeClient ? "&firstTime=1" : ""}`);
+    router.push(`/portal?registered=1${isFirstTimeClient ? "&firstTime=1" : ""}`);
     router.refresh();
   }
 
@@ -163,9 +163,9 @@ export default function RegisterPage() {
               </button>
             </form>
 
-            <p className="auth-switch">
-              Already have an account? <Link href="/login">Log in here</Link>.
-            </p>
+              <p className="auth-switch">
+                Already have an account? <Link href="/portal">Log in here</Link>.
+              </p>
           </section>
         </div>
       </main>

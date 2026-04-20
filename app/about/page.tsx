@@ -11,8 +11,8 @@ export default function AboutPage() {
     <SiteShell>
       <main className="page-main">
         <div className="content-shell">
-          <section className="page-card">
-            <div className="team-section" id="mission">
+          <section className="page-card about-anchor-section" id="mission">
+            <div className="team-section">
               <span className="eyebrow">Our Mission</span>
               <h1 className="section-title">Personal, home-based care with a calm routine</h1>
               <p className="section-copy">Pawsome Care is built around the belief that dogs thrive in environments where calm structure meets genuine companionship. We aim to create a small-group, attentive care experience in Davis, CA that feels more personal, comfortable, and thoughtfully paced than a large, high-volume facility.</p>
@@ -22,7 +22,10 @@ export default function AboutPage() {
                 ))}
               </div>
             </div>
-            <div className="team-section" id="team">
+          </section>
+
+          <section className="page-card about-anchor-section" id="team">
+            <div className="team-section">
               <span className="eyebrow">Meet the Team</span>
               <article className="about-card team-profile">
                 <div className="team-photo-stack">

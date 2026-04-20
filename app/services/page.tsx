@@ -23,6 +23,7 @@ const faqs = [
 
 export default function ServicesPage() {
   const [modal, setModal] = useState<"holiday" | "walking" | "dropin" | null>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
     <SiteShell>
@@ -55,8 +56,27 @@ export default function ServicesPage() {
             <AvailabilityCalendar />
             <div className="team-section" id="faq">
               <span className="eyebrow">Frequently Asked Questions</span>
-              <div className="faq-grid">
-                {faqs.map(([question, answer]) => <article className="faq-card" key={question}><h3>{question}</h3><p>{answer}</p></article>)}
+              <div className="faq-list">
+                {faqs.map(([question, answer], index) => {
+                  const isOpen = openFaq === index;
+
+                  return (
+                    <article className={`faq-card faq-accordion-item${isOpen ? " is-open" : ""}`} key={question}>
+                      <button
+                        className="faq-question"
+                        type="button"
+                        aria-expanded={isOpen}
+                        onClick={() => setOpenFaq(isOpen ? null : index)}
+                      >
+                        <span className={`faq-arrow${isOpen ? " is-open" : ""}`} aria-hidden="true">
+                          &#8250;
+                        </span>
+                        <span>{question}</span>
+                      </button>
+                      {isOpen ? <p className="faq-answer">{answer}</p> : null}
+                    </article>
+                  );
+                })}
               </div>
             </div>
           </section>

@@ -51,6 +51,13 @@ export type DailyUpdate = {
   created_at: string;
 };
 
+export type DailyUpdatePhoto = {
+  id: number;
+  daily_update_id: number;
+  image_url: string;
+  created_at: string;
+};
+
 export async function getAuthenticatedAdmin() {
   const {
     data: { user },
@@ -137,4 +144,22 @@ export async function getAdminDailyUpdatesForHouseholds(households: Household[])
   );
 
   return updateResults.flat();
+}
+
+export async function getAdminDailyUpdatePhotosForHouseholds(households: Household[]) {
+  const photoResults = await Promise.all(
+    households.map(async (household) => {
+      const photoResult = await supabase.rpc("get_admin_daily_update_photos_for_household", {
+        target_household_id: household.id,
+      });
+
+      if (photoResult.error) {
+        throw new Error(photoResult.error.message);
+      }
+
+      return (photoResult.data as DailyUpdatePhoto[]) ?? [];
+    }),
+  );
+
+  return photoResults.flat();
 }

@@ -15,12 +15,28 @@ import {
 import { supabase } from "../../../lib/supabase";
 
 type BookingGroup = {
+  key: string;
   label: string;
+  description: string;
   items: Booking[];
 };
 
+function formatServiceLabel(serviceType: string) {
+  if (serviceType === "meet-and-greet") {
+    return "Meet & Greet";
+  }
+
+  return serviceType
+    .split("-")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
 export default function AdminBookingsPage() {
   const router = useRouter();
+  const [activeFilter, setActiveFilter] = useState<
+    "all" | "pending" | "today" | "upcoming" | "meet-and-greet" | "history"
+  >("all");
   const [households, setHouseholds] = useState<Household[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,23 +76,74 @@ export default function AdminBookingsPage() {
   const bookingGroups = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
 
-    const pending = bookings.filter((booking) => booking.status === "pending");
-    const current = bookings.filter(
-      (booking) => booking.status === "confirmed" && booking.end_date >= today,
+    const pendingStays = bookings.filter(
+      (booking) => booking.status === "pending" && booking.service_type !== "meet-and-greet",
     );
-    const history = bookings.filter(
+    const todaysStays = bookings.filter(
       (booking) =>
-        booking.status === "completed" ||
-        booking.status === "cancelled" ||
-        (booking.status === "confirmed" && booking.end_date < today),
+        booking.status === "confirmed" &&
+        booking.service_type !== "meet-and-greet" &&
+        booking.start_date <= today &&
+        booking.end_date >= today,
     );
+    const upcomingStays = bookings.filter(
+      (booking) =>
+        booking.status === "confirmed" &&
+        booking.service_type !== "meet-and-greet" &&
+        booking.start_date > today,
+    );
+    const upcomingMeetAndGreets = bookings.filter(
+      (booking) =>
+        booking.service_type === "meet-and-greet" &&
+        (booking.status === "pending" || booking.status === "confirmed") &&
+        booking.start_date >= today,
+    );
+    const history = bookings
+      .filter(
+        (booking) =>
+          booking.status === "completed" ||
+          booking.status === "cancelled" ||
+          (booking.status === "confirmed" && booking.end_date < today),
+      )
+      .sort((a, b) => b.start_date.localeCompare(a.start_date));
 
     return [
-      { label: "Pending Requests", items: pending },
-      { label: "Current and Upcoming", items: current },
-      { label: "History", items: history },
+      {
+        key: "pending",
+        label: "Needs Decision",
+        description: "Start here. These booking requests are still waiting for approval.",
+        items: pendingStays,
+      },
+      {
+        key: "today",
+        label: "Today’s Active Stays",
+        description: "These are the confirmed stays that need updates or completion work today.",
+        items: todaysStays,
+      },
+      {
+        key: "upcoming",
+        label: "Upcoming Stays",
+        description: "Confirmed future stays that are already on the calendar.",
+        items: upcomingStays,
+      },
+      {
+        key: "meet-and-greet",
+        label: "Upcoming Meet & Greets",
+        description: "Intro appointments stay visible here, separate from daily update work.",
+        items: upcomingMeetAndGreets,
+      },
+      {
+        key: "history",
+        label: "History",
+        description: "Completed, cancelled, and past stays remain here for reference.",
+        items: history,
+      },
     ].filter((group) => group.items.length > 0) as BookingGroup[];
   }, [bookings]);
+  const visibleBookingGroups =
+    activeFilter === "all"
+      ? bookingGroups
+      : bookingGroups.filter((group) => group.key === activeFilter);
 
   function getClientLabel(householdId: number) {
     const household = householdMap.get(householdId);
@@ -87,6 +154,31 @@ export default function AdminBookingsPage() {
 
     return getHouseholdLabel(household);
   }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const pendingCount = bookings.filter((booking) => booking.status === "pending").length;
+  const todaysStayCount = bookings.filter(
+    (booking) =>
+      booking.status === "confirmed" &&
+      booking.service_type !== "meet-and-greet" &&
+      booking.start_date <= today &&
+      booking.end_date >= today,
+  ).length;
+  const upcomingStayCount = bookings.filter(
+    (booking) =>
+      booking.status === "confirmed" &&
+      booking.service_type !== "meet-and-greet" &&
+      booking.start_date > today,
+  ).length;
+  const meetAndGreetCount = bookings.filter(
+    (booking) =>
+      booking.service_type === "meet-and-greet" &&
+      (booking.status === "pending" || booking.status === "confirmed") &&
+      booking.start_date >= today,
+  ).length;
+  const historyCount = bookings.filter(
+    (booking) => booking.status === "completed" || booking.status === "cancelled",
+  ).length;
 
   async function handleUpdateBookingStatus(bookingId: number, nextStatus: string) {
     setErrorMessage("");
@@ -162,52 +254,77 @@ export default function AdminBookingsPage() {
 
             <div className="admin-grid">
               <article className="admin-card">
-                <span className="portal-kicker">Pending</span>
-                <h3>{bookings.filter((booking) => booking.status === "pending").length}</h3>
+                <span className="portal-kicker">Needs Decision</span>
+                <h3>{pendingCount}</h3>
                 <p>These requests still need a decision before the stay is confirmed.</p>
               </article>
               <article className="admin-card">
-                <span className="portal-kicker">Current</span>
-                <h3>
-                  {
-                    bookings.filter(
-                      (booking) =>
-                        booking.status === "confirmed" &&
-                        booking.end_date >= new Date().toISOString().slice(0, 10),
-                    ).length
-                  }
-                </h3>
-                <p>These are the confirmed stays that are current or still upcoming.</p>
+                <span className="portal-kicker">Today</span>
+                <h3>{todaysStayCount}</h3>
+                <p>These confirmed stays are active right now and should stay visible first.</p>
+              </article>
+              <article className="admin-card">
+                <span className="portal-kicker">Upcoming</span>
+                <h3>{upcomingStayCount}</h3>
+                <p>These confirmed stays are scheduled next and already on the calendar.</p>
+              </article>
+              <article className="admin-card">
+                <span className="portal-kicker">Meet &amp; Greets</span>
+                <h3>{meetAndGreetCount}</h3>
+                <p>Intro appointments stay separate from regular stay-update work.</p>
               </article>
               <article className="admin-card">
                 <span className="portal-kicker">History</span>
-                <h3>
-                  {
-                    bookings.filter(
-                      (booking) =>
-                        booking.status === "completed" || booking.status === "cancelled",
-                    ).length
-                  }
-                </h3>
+                <h3>{historyCount}</h3>
                 <p>Completed and cancelled bookings stay here for quick reference later.</p>
               </article>
             </div>
 
             <section className="admin-list-card">
-              <h2>Booking Queue</h2>
-              {bookingGroups.length === 0 ? (
+              <div className="portal-card-topline">
+                <div>
+                  <h2>Booking Queue</h2>
+                  <p className="admin-priority-note">
+                    Filter the queue by task type when you want to focus on one slice of work.
+                  </p>
+                </div>
+              </div>
+              <div className="admin-filter-row">
+                {[
+                  { key: "all", label: "All" },
+                  { key: "pending", label: "Needs Decision" },
+                  { key: "today", label: "Today" },
+                  { key: "upcoming", label: "Upcoming" },
+                  { key: "meet-and-greet", label: "M&G" },
+                  { key: "history", label: "History" },
+                ].map((filter) => (
+                  <button
+                    key={filter.key}
+                    className={`button button-secondary admin-filter-button ${activeFilter === filter.key ? "is-active" : ""}`}
+                    type="button"
+                    onClick={() =>
+                      setActiveFilter(
+                        filter.key as "all" | "pending" | "today" | "upcoming" | "meet-and-greet" | "history",
+                      )
+                    }
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+              {visibleBookingGroups.length === 0 ? (
                 <p className="section-copy">
-                  No bookings are on file yet. Once a pet parent submits a request, it will
-                  show up here.
+                  No bookings match this filter right now.
                 </p>
               ) : (
                 <div className="portal-status-stack">
-                  {bookingGroups.map((group) => (
+                  {visibleBookingGroups.map((group) => (
                     <section key={group.label} className="portal-status-group">
                       <div className="portal-status-heading">
                         <h4>{group.label}</h4>
                         <span>{group.items.length}</span>
                       </div>
+                      <p className="admin-priority-note">{group.description}</p>
                       <div className="admin-list">
                         {group.items.map((booking) => (
                           <article className="admin-list-item" key={booking.id}>
@@ -224,15 +341,14 @@ export default function AdminBookingsPage() {
                               <strong>Pet:</strong> {booking.pet_name || "Not linked yet"}
                             </p>
                             <p>
-                              <strong>Service:</strong> {booking.service_type}
+                              <strong>Service:</strong> {formatServiceLabel(booking.service_type)}
                             </p>
-                            <p>Notes: {booking.notes || "No notes yet"}</p>
-                            <p>Drop-off: {booking.drop_off_note || "No drop-off note yet"}</p>
-                            <p>Pick-up: {booking.pick_up_note || "No pick-up note yet"}</p>
-                            <p>
-                              Special instructions:{" "}
-                              {booking.special_instructions || "No special instructions yet"}
-                            </p>
+                            {booking.notes ? <p>Notes: {booking.notes}</p> : null}
+                            {booking.drop_off_note ? <p>Drop-off: {booking.drop_off_note}</p> : null}
+                            {booking.pick_up_note ? <p>Pick-up: {booking.pick_up_note}</p> : null}
+                            {booking.special_instructions ? (
+                              <p>Special instructions: {booking.special_instructions}</p>
+                            ) : null}
                             <div
                               style={{
                                 display: "flex",
@@ -265,7 +381,17 @@ export default function AdminBookingsPage() {
                                   </button>
                                 </>
                               ) : null}
-                              {booking.status === "confirmed" ? (
+                              {booking.status === "confirmed" &&
+                              booking.service_type !== "meet-and-greet" ? (
+                                <Link
+                                  className="button button-primary"
+                                  href={`/admin/clients/${booking.household_id}?bookingId=${booking.id}#publish-daily-update`}
+                                >
+                                  Publish Update
+                                </Link>
+                              ) : null}
+                              {booking.status === "confirmed" &&
+                              booking.service_type !== "meet-and-greet" ? (
                                 <button
                                   className="button button-secondary"
                                   type="button"
@@ -283,7 +409,9 @@ export default function AdminBookingsPage() {
                                 className="button button-secondary"
                                 href={`/admin/clients/${booking.household_id}?bookingId=${booking.id}#selected-stay-detail`}
                               >
-                                Open Stay Detail
+                                {booking.service_type === "meet-and-greet"
+                                  ? "Open Appointment"
+                                  : "Open Stay Detail"}
                               </Link>
                             </div>
                           </article>

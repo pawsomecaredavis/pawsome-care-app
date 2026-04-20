@@ -129,6 +129,15 @@ textarea {
   position: relative;
 }
 
+.nav-dropdown::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 14px;
+}
+
 .nav-dropdown-trigger {
   display: inline-flex;
   align-items: center;
@@ -152,7 +161,7 @@ textarea {
 
 .nav-dropdown-menu {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 8px);
   left: 0;
   min-width: 180px;
   display: none;
@@ -488,6 +497,11 @@ textarea {
   gap: 20px;
 }
 
+.faq-list {
+  display: grid;
+  gap: 14px;
+}
+
 .contact-grid,
 .portal-detail-grid,
 .form-layout {
@@ -546,6 +560,62 @@ textarea {
 .helper-card h2 {
   margin: 0;
   color: #241814;
+}
+
+.faq-accordion-item {
+  padding: 0;
+  overflow: hidden;
+}
+
+.faq-question {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+  border: none;
+  background: transparent;
+  color: #241814;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.faq-question:hover,
+.faq-question:focus-visible {
+  transform: none;
+}
+
+.faq-question span:first-child {
+  flex-shrink: 0;
+  order: 0;
+}
+
+.faq-question span:last-child {
+  font-size: 1.15rem;
+  line-height: 1.45;
+}
+
+.faq-question span:first-child,
+.faq-arrow {
+  color: #8f5a28;
+}
+
+.faq-arrow {
+  font-size: 1.15rem;
+  margin-top: 2px;
+  transition: transform 0.2s ease;
+}
+
+.faq-arrow.is-open {
+  transform: rotate(90deg);
+}
+
+.faq-answer {
+  margin: 0;
+  padding: 0 24px 24px;
 }
 
 .service-price {
@@ -681,6 +751,10 @@ textarea {
   margin-top: 40px;
 }
 
+.about-anchor-section {
+  scroll-margin-top: 108px;
+}
+
 .team-profile {
   display: grid;
   grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
@@ -799,6 +873,27 @@ textarea {
   text-decoration: none;
 }
 
+.portal-password-help {
+  margin-top: 18px;
+  margin-bottom: 14px;
+}
+
+.portal-password-help-text {
+  margin: 0;
+  color: #6e5647;
+  line-height: 1.6;
+}
+
+.portal-auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.portal-auth-secondary {
+  min-width: 168px;
+}
+
 .gallery-hero-arch img {
   min-height: 360px;
 }
@@ -879,6 +974,19 @@ textarea {
   padding: 24px;
 }
 
+.admin-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-card-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 40px rgba(101, 66, 35, 0.1);
+  border-color: rgba(184, 102, 44, 0.2);
+}
+
 .admin-card h3 {
   margin: 10px 0 12px;
 }
@@ -902,6 +1010,54 @@ textarea {
   background: linear-gradient(180deg, #fff7ef 0%, #fffdf9 100%);
   border-color: rgba(184, 102, 44, 0.2);
   margin-top: 28px;
+}
+
+.admin-workflow-card {
+  margin-top: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(232, 190, 147, 0.22), transparent 26%),
+    linear-gradient(180deg, #fff8f0 0%, #fffdf9 100%);
+  border-color: rgba(184, 102, 44, 0.2);
+}
+
+.admin-workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.admin-workflow-step,
+.admin-workflow-summary-card {
+  border-radius: 22px;
+  border: 1px solid rgba(124, 71, 36, 0.1);
+  background: rgba(255, 252, 247, 0.96);
+  padding: 20px;
+}
+
+.admin-workflow-step-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
+.admin-workflow-step h3,
+.admin-workflow-summary-card h3 {
+  margin: 0;
+}
+
+.admin-workflow-step p,
+.admin-workflow-summary-card p {
+  margin: 0 0 16px;
+}
+
+.admin-workflow-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
 }
 
 .analytics-card {
@@ -1027,8 +1183,34 @@ textarea {
   background: linear-gradient(180deg, #fff8f1 0%, #fffaf5 100%);
 }
 
+.admin-send-ready-item {
+  border-color: rgba(80, 158, 88, 0.2);
+  background: linear-gradient(180deg, #f6fff5 0%, #fffaf5 100%);
+}
+
 .admin-list-item p {
   margin-bottom: 0;
+}
+
+.admin-send-status-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.admin-filter-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  margin-bottom: 18px;
+}
+
+.admin-filter-button.is-active {
+  background: #b8662c;
+  color: #fff;
+  border-color: #b8662c;
 }
 
 .admin-select {
@@ -1267,6 +1449,31 @@ textarea {
   line-height: 1.8;
 }
 
+.portal-entry-guide {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.portal-entry-guide-item {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(139, 78, 40, 0.12);
+  background: rgba(255, 249, 242, 0.9);
+}
+
+.portal-entry-guide-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: #2e2118;
+}
+
+.portal-entry-guide-copy {
+  margin: 0;
+  color: #6e5647;
+  line-height: 1.65;
+}
+
 .portal-summary-card strong {
   display: block;
   margin-top: 10px;
@@ -1499,6 +1706,31 @@ textarea {
   margin-top: 28px;
 }
 
+.auth-helper-card {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid rgba(139, 78, 40, 0.14);
+  border-radius: 24px;
+  background: rgba(255, 249, 242, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.auth-helper-title {
+  margin: 0 0 6px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #2e2118;
+}
+
+.auth-helper-copy {
+  margin: 0;
+  color: rgba(46, 33, 24, 0.78);
+  line-height: 1.6;
+}
+
 .auth-grid {
   grid-template-columns: 1fr;
 }
@@ -1521,6 +1753,13 @@ textarea {
 .auth-switch a {
   color: #8b4e28;
   font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .auth-helper-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .modal-backdrop {
@@ -1609,8 +1848,19 @@ textarea {
   .portal-auth-shell,
   .admin-workspace,
   .portal-home-shell,
-  .portal-welcome-shell {
+  .portal-welcome-shell,
+  .admin-workflow-steps,
+  .admin-workflow-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .portal-password-help {
+    margin-bottom: 16px;
+  }
+
+  .portal-auth-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .gallery-about-grid {

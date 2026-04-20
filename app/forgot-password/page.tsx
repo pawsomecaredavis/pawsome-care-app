@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
     const email = String(formData.get("email") || "").trim();
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/update-password`,
     });
 
     setIsSubmitting(false);
@@ -62,7 +62,7 @@ export default function ForgotPasswordPage() {
             </form>
 
             <p className="auth-switch">
-              Remembered it? <Link href="/login">Back to login</Link>.
+              Remembered it? <Link href="/portal">Back to portal login</Link>.
             </p>
           </section>
         </div>
