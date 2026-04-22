@@ -1280,20 +1280,24 @@ export function PortalDemo() {
               Use this setup path if you have not created your portal login yet.
             </p>
             <div className="portal-entry-guide">
-              <div className="portal-entry-guide-item">
-                <p className="portal-entry-guide-title">Brand-new client</p>
-                <p className="portal-entry-guide-copy">
-                  Create your account, choose that you are brand new, and we will guide you to
-                  book a meet and greet before daycare or boarding.
-                </p>
-              </div>
-              <div className="portal-entry-guide-item">
-                <p className="portal-entry-guide-title">Existing offline client</p>
-                <p className="portal-entry-guide-copy">
-                  Create your portal account too, then choose that you have booked before so you
-                  can continue straight into the normal portal flow.
-                </p>
-              </div>
+              <Link className="portal-entry-guide-link" href="/register?clientType=brand-new">
+                <div className="portal-entry-guide-item">
+                  <p className="portal-entry-guide-title">Brand-new client</p>
+                  <p className="portal-entry-guide-copy">
+                    Create your account, start as brand new, and we will guide you to book a
+                    meet and greet before daycare or boarding.
+                  </p>
+                </div>
+              </Link>
+              <Link className="portal-entry-guide-link" href="/register?clientType=existing-offline">
+                <div className="portal-entry-guide-item">
+                  <p className="portal-entry-guide-title">Existing offline client</p>
+                  <p className="portal-entry-guide-copy">
+                    Create your portal account too, start as an existing client, so you can
+                    continue straight into the normal portal flow.
+                  </p>
+                </div>
+              </Link>
             </div>
             <ul className="portal-list">
                 <li>Enter full name, email, and mobile phone number.</li>

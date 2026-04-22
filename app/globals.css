@@ -1455,11 +1455,24 @@ textarea {
   margin-bottom: 18px;
 }
 
+.portal-entry-guide-link {
+  display: block;
+  text-decoration: none;
+}
+
 .portal-entry-guide-item {
   padding: 14px 16px;
   border-radius: 18px;
   border: 1px solid rgba(139, 78, 40, 0.12);
   background: rgba(255, 249, 242, 0.9);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.portal-entry-guide-link:hover .portal-entry-guide-item,
+.portal-entry-guide-link:focus-visible .portal-entry-guide-item {
+  transform: translateY(-1px);
+  border-color: rgba(184, 102, 44, 0.24);
+  box-shadow: 0 14px 28px rgba(184, 102, 44, 0.12);
 }
 
 .portal-entry-guide-title {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteShell } from "../components/site-shell";
 import { isLikelyValidPhone, normalizePhoneForStorage } from "../../lib/phone";
@@ -12,6 +12,25 @@ export default function RegisterPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedClientTypeAnswer, setSelectedClientTypeAnswer] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const clientType = params.get("clientType");
+
+    if (clientType === "brand-new") {
+      setSelectedClientTypeAnswer("yes");
+      return;
+    }
+
+    if (clientType === "existing-offline") {
+      setSelectedClientTypeAnswer("no");
+    }
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -116,7 +135,8 @@ export default function RegisterPage() {
                     id="isFirstTimeClient"
                     name="isFirstTimeClient"
                     className="admin-select"
-                    defaultValue=""
+                    value={selectedClientTypeAnswer}
+                    onChange={(event) => setSelectedClientTypeAnswer(event.target.value)}
                     required
                   >
                     <option value="" disabled>
