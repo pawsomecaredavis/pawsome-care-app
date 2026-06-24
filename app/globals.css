@@ -964,6 +964,8 @@ textarea {
   gap: 22px;
   align-content: start;
   padding-top: 8px;
+  justify-items: center;
+  text-align: center;
 }
 
 .team-name {
@@ -977,7 +979,7 @@ textarea {
 
 .team-copy p {
   margin: 0;
-  max-width: 21ch;
+  max-width: 31ch;
   color: #2f4d3e;
   font-size: clamp(1.06rem, 1.45vw, 1.24rem);
   line-height: 1.72;
