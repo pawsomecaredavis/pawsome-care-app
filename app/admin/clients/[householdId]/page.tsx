@@ -10,6 +10,7 @@ import {
   getBookingDisplayPrice,
 } from "../../../../lib/booking-pricing";
 import { uploadDailyUpdatePhotos } from "../../../../lib/daily-update-photos";
+import { uploadPetPhoto } from "../../../../lib/pet-photos";
 import { isLikelyValidPhone, normalizePhoneForStorage } from "../../../../lib/phone";
 import { getCurrentProfile, type Profile } from "../../../../lib/profile";
 import { SiteShell } from "../../../components/site-shell";
@@ -158,6 +159,7 @@ export default function AdminClientProfilePage({
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
   const [isSavingHousehold, setIsSavingHousehold] = useState(false);
+  const [isSavingPetId, setIsSavingPetId] = useState<number | null>(null);
   const [isSavingUpdateId, setIsSavingUpdateId] = useState<number | null>(null);
   const [isRemovingUpdatePhotoId, setIsRemovingUpdatePhotoId] = useState<number | null>(null);
   const [isUpdatingBookingId, setIsUpdatingBookingId] = useState<number | null>(null);
@@ -600,6 +602,70 @@ export default function AdminClientProfilePage({
         : current,
     );
     setSuccessMessage("Client profile updated successfully.");
+  }
+
+  async function handleUpdatePetProfile(event: FormEvent<HTMLFormElement>, pet: Pet) {
+    event.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
+    setIsSavingPetId(pet.id);
+
+    const formData = new FormData(event.currentTarget);
+    const nextName = String(formData.get("petName") || "").trim();
+    const nextBreed = String(formData.get("breed") || "").trim();
+    const nextAge = String(formData.get("age") || "").trim();
+    const nextVaccinationStatus = String(formData.get("vaccinationStatus") || "").trim();
+    const nextNotes = String(formData.get("notes") || "").trim();
+    const photoEntry = formData.get("petPhoto");
+
+    if (!nextName) {
+      setIsSavingPetId(null);
+      setErrorMessage("Pet name cannot be empty.");
+      return;
+    }
+
+    let nextPhotoUrl = pet.photo_url;
+
+    if (photoEntry instanceof File && photoEntry.size > 0) {
+      try {
+        nextPhotoUrl = await uploadPetPhoto(photoEntry, pet.household_id, nextName);
+      } catch (error) {
+        setIsSavingPetId(null);
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to upload the replacement pet photo.",
+        );
+        return;
+      }
+    }
+
+    const { data, error } = await supabase.rpc("admin_update_pet_profile", {
+      target_pet_id: pet.id,
+      next_name: nextName,
+      next_breed: nextBreed || null,
+      next_age: nextAge || null,
+      next_vaccination_status: nextVaccinationStatus || null,
+      next_notes: nextNotes || null,
+      next_photo_url: nextPhotoUrl,
+    });
+
+    setIsSavingPetId(null);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    const updatedPet = Array.isArray(data) ? data[0] : data;
+
+    if (!updatedPet) {
+      setErrorMessage("The pet profile saved, but the updated record could not be loaded.");
+      return;
+    }
+
+    setPets((current) =>
+      current.map((currentPet) => (currentPet.id === pet.id ? (updatedPet as Pet) : currentPet)),
+    );
+    setSuccessMessage(`${nextName} profile updated successfully.`);
   }
 
   function getUpdatePhotos(dailyUpdateId: number) {
@@ -1379,6 +1445,18 @@ export default function AdminClientProfilePage({
                           {isUpdatingBookingId === focusedBooking.id ? "Saving..." : "Mark Completed"}
                         </button>
                       ) : null}
+                      {focusedBooking.status === "completed" ? (
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          onClick={() =>
+                            void handleUpdateBookingStatus(focusedBooking.id, "confirmed")
+                          }
+                          disabled={isUpdatingBookingId === focusedBooking.id}
+                        >
+                          {isUpdatingBookingId === focusedBooking.id ? "Saving..." : "Reopen Stay"}
+                        </button>
+                      ) : null}
                       {focusedBookingCanPublishUpdate && household?.contact_email ? (
                         <a className="button button-secondary" href={getFocusedStayMailtoHref()}>
                           Open Email Draft
@@ -1727,7 +1805,7 @@ export default function AdminClientProfilePage({
                 ) : (
                   <div className="admin-list">
                     {pets.map((pet) => (
-                      <article className="admin-list-item" key={pet.id}>
+                      <article className="admin-list-item admin-pet-profile-card" key={pet.id}>
                         {pet.photo_url ? (
                           <img
                             src={pet.photo_url}
@@ -1743,10 +1821,48 @@ export default function AdminClientProfilePage({
                           />
                         ) : null}
                         <strong>{pet.name}</strong>
-                        <p>Breed: {pet.breed || "Not added yet"}</p>
-                        <p>Age: {pet.age || "Not added yet"}</p>
-                        <p>Vaccination: {pet.vaccination_status || "Not added yet"}</p>
-                        <p>Notes: {pet.notes || "No notes yet"}</p>
+                        <form
+                          className="admin-pet-edit-form"
+                          onSubmit={(event) => void handleUpdatePetProfile(event, pet)}
+                        >
+                          <div className="field-grid admin-field-grid admin-pet-inline-fields">
+                            <div className="field field-full">
+                              <label htmlFor={`petName-${pet.id}`}>Name</label>
+                              <input id={`petName-${pet.id}`} name="petName" defaultValue={pet.name} required />
+                            </div>
+                            <div className="field field-full">
+                              <label htmlFor={`breed-${pet.id}`}>Breed</label>
+                              <input id={`breed-${pet.id}`} name="breed" defaultValue={pet.breed || ""} />
+                            </div>
+                            <div className="field field-full">
+                              <label htmlFor={`age-${pet.id}`}>Age</label>
+                              <input id={`age-${pet.id}`} name="age" defaultValue={pet.age || ""} />
+                            </div>
+                            <div className="field field-full">
+                              <label htmlFor={`vaccinationStatus-${pet.id}`}>Vaccination</label>
+                              <input
+                                id={`vaccinationStatus-${pet.id}`}
+                                name="vaccinationStatus"
+                                defaultValue={pet.vaccination_status || ""}
+                              />
+                            </div>
+                            <div className="field field-full">
+                              <label htmlFor={`notes-${pet.id}`}>Notes</label>
+                              <textarea id={`notes-${pet.id}`} name="notes" rows={3} defaultValue={pet.notes || ""} />
+                            </div>
+                            <div className="field field-full">
+                              <label htmlFor={`petPhoto-${pet.id}`}>Replace Photo</label>
+                              <input id={`petPhoto-${pet.id}`} type="file" name="petPhoto" accept="image/*" />
+                            </div>
+                          </div>
+                          <button
+                            className="button button-secondary"
+                            type="submit"
+                            disabled={isSavingPetId === pet.id}
+                          >
+                            {isSavingPetId === pet.id ? "Saving..." : "Save Pet Profile"}
+                          </button>
+                        </form>
                       </article>
                     ))}
                   </div>
@@ -1795,20 +1911,32 @@ export default function AdminClientProfilePage({
                                   Open Stay Detail
                                 </Link>
                                 {booking.status === "confirmed" ? (
-                                  <button
-                                    className="button button-secondary"
-                                    type="button"
-                                    onClick={() =>
-                                      void handleUpdateBookingStatus(booking.id, "completed")
+                                <button
+                                  className="button button-secondary"
+                                  type="button"
+                                  onClick={() =>
+                                    void handleUpdateBookingStatus(booking.id, "completed")
                                     }
                                     disabled={isUpdatingBookingId === booking.id}
-                                  >
-                                    {isUpdatingBookingId === booking.id ? "Saving..." : "Mark Completed"}
-                                  </button>
-                                ) : null}
-                              </div>
-                            </article>
-                          ))}
+                                >
+                                  {isUpdatingBookingId === booking.id ? "Saving..." : "Mark Completed"}
+                                </button>
+                              ) : null}
+                              {booking.status === "completed" ? (
+                                <button
+                                  className="button button-secondary"
+                                  type="button"
+                                  onClick={() =>
+                                    void handleUpdateBookingStatus(booking.id, "confirmed")
+                                  }
+                                  disabled={isUpdatingBookingId === booking.id}
+                                >
+                                  {isUpdatingBookingId === booking.id ? "Saving..." : "Reopen Stay"}
+                                </button>
+                              ) : null}
+                            </div>
+                          </article>
+                        ))}
                         </div>
                       </section>
                     ))}

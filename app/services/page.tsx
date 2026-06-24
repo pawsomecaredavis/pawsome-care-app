@@ -13,10 +13,10 @@ import {
 } from "../../lib/booking-pricing";
 
 const services = [
-  { name: "Dog Daycare", price: `${formatCurrency(DAYCARE_BASE_RATE)}/day`, text: "Structured daytime care in a home setting with potty breaks, supervision, play, rest time, and photo updates throughout the day." },
-  { name: "Dog Boarding", price: `${formatCurrency(BOARDING_NIGHT_RATE)}/night`, text: "Overnight care for dogs who do best with a personal home environment, regular routines, and close attention instead of a crowded kennel setup." },
-  { name: "Dog Walking", price: "$25/walk", text: "Reliable 30-minute neighborhood walks focused on exercise, enrichment, and consistency for dogs who need a midday break or extra movement." },
-  { name: "Pet Drop-In", price: "$25/visit", text: "Quick but attentive 30-minute home visits for feeding, potty breaks, water refresh, medication routines, and check-ins while you are away." },
+  { name: "Dog Daycare", price: `${formatCurrency(DAYCARE_BASE_RATE)}/day`, text: "Daytime home-based care with play, rest, and potty breaks." },
+  { name: "Dog Boarding", price: `${formatCurrency(BOARDING_NIGHT_RATE)}/night`, text: "Overnight care in a calm home setting with consistent routines." },
+  { name: "Dog Walking", price: "$25/walk", text: "30-minute neighborhood walks focused on movement and routine." },
+  { name: "Pet Drop-In", price: "$25/visit", text: "30-minute home visits for feeding, potty breaks, and check-ins." },
 ];
 
 const faqs = [
@@ -38,17 +38,20 @@ export default function ServicesPage() {
       <main className="page-main">
         <div className="content-shell">
           <section className="page-card">
-            <span className="eyebrow">Services</span>
-            <h1 className="section-title">Flexible pet care for busy Davis pet parents</h1>
-            <p className="section-copy">Every service is designed around safety, communication, and a calmer experience for your pet in Davis, CA.</p>
+            <div className="services-page-head">
+              <h1 className="section-title services-page-title">Pet care services in Davis, CA</h1>
+              <p className="section-copy services-page-copy">
+                Home-based care options designed to feel calm, clear, and easy to book.
+              </p>
+            </div>
             <div className="services-grid">
               {services.map((service) => (
                 <article className="service-card" key={service.name}>
                   <div className="service-head">
                     <h3>
                       {service.name}
-                      {service.name === "Dog Walking" ? <button className="inline-info service-info" type="button" onClick={() => setModal("walking")}>!</button> : null}
-                      {service.name === "Pet Drop-In" ? <button className="inline-info service-info" type="button" onClick={() => setModal("dropin")}>!</button> : null}
+                      {service.name === "Dog Walking" ? <button className="inline-info service-info" type="button" aria-label="More about dog walking rates" onClick={() => setModal("walking")}><span>i</span></button> : null}
+                      {service.name === "Pet Drop-In" ? <button className="inline-info service-info" type="button" aria-label="More about pet drop-in rates" onClick={() => setModal("dropin")}><span>i</span></button> : null}
                     </h3>
                     <span className="service-price">{service.price}</span>
                   </div>
@@ -65,7 +68,7 @@ export default function ServicesPage() {
                 {formatCurrency(BOARDING_LATE_PICKUP_HALF_DAY_RATE)} for 2-8 extra hours or{" "}
                 {formatCurrency(BOARDING_LATE_PICKUP_FULL_DAY_RATE)} for more than 8 hours.
               </p>
-              <p>Holiday rates <button className="inline-info" type="button" onClick={() => setModal("holiday")}>!</button></p>
+              <p>Holiday rates <button className="inline-info" type="button" aria-label="More about holiday rates" onClick={() => setModal("holiday")}><span>i</span></button></p>
             </div>
             <AvailabilityCalendar />
             <div className="team-section" id="faq">

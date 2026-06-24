@@ -450,6 +450,18 @@ export default function AdminBookingsPage() {
                                     : "Mark Completed"}
                                 </button>
                               ) : null}
+                              {booking.status === "completed" ? (
+                                <button
+                                  className="button button-secondary"
+                                  type="button"
+                                  onClick={() =>
+                                    void handleUpdateBookingStatus(booking.id, "confirmed")
+                                  }
+                                  disabled={isUpdatingBookingId === booking.id}
+                                >
+                                  {isUpdatingBookingId === booking.id ? "Saving..." : "Reopen Stay"}
+                                </button>
+                              ) : null}
                               <Link
                                 className="button button-secondary"
                                 href={`/admin/clients/${booking.household_id}?bookingId=${booking.id}#selected-stay-detail`}

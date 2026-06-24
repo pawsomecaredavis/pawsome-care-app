@@ -105,32 +105,34 @@ export function SiteShell({ children }: SiteShellProps) {
           </button>
 
           <div className={`nav-links ${isMenuOpen ? "is-open" : ""}`} id="site-nav-links">
-            <Link href="/#home" onClick={handleCloseMenus}>Home</Link>
-            <Link href="/gallery" onClick={handleCloseMenus}>Photo Gallery</Link>
-            <Link href="/services" onClick={handleCloseMenus}>Services</Link>
-            <Link href="/#contact" onClick={handleCloseMenus}>Contact Us</Link>
-            <div
-              className={`nav-dropdown ${isAboutOpen ? "is-open" : ""}`}
-              onMouseEnter={() => setIsAboutOpen(true)}
-              onMouseLeave={() => setIsAboutOpen(false)}
-            >
-              <button
-                className="nav-dropdown-trigger"
-                type="button"
-                aria-expanded={isAboutOpen}
-                onClick={() => setIsAboutOpen((current) => !current)}
+            <div className="nav-primary">
+              <Link href="/#home" onClick={handleCloseMenus}>Home</Link>
+              <Link href="/gallery" onClick={handleCloseMenus}>Photo Gallery</Link>
+              <Link href="/services" onClick={handleCloseMenus}>Services</Link>
+              <Link href="/#contact" onClick={handleCloseMenus}>Contact Us</Link>
+              <div
+                className={`nav-dropdown ${isAboutOpen ? "is-open" : ""}`}
+                onMouseEnter={() => setIsAboutOpen(true)}
+                onMouseLeave={() => setIsAboutOpen(false)}
               >
-                <span>About Us</span>
-                <span className="nav-dropdown-caret">&#9662;</span>
-              </button>
-              <div className="nav-dropdown-menu">
-                <Link href="/about#mission" onClick={handleCloseMenus}>Our Mission</Link>
-                <Link href="/about#team" onClick={handleCloseMenus}>Meet the Team</Link>
+                <button
+                  className="nav-dropdown-trigger"
+                  type="button"
+                  aria-expanded={isAboutOpen}
+                  onClick={() => setIsAboutOpen((current) => !current)}
+                >
+                  <span>About Us</span>
+                  <span className="nav-dropdown-caret">&#9662;</span>
+                </button>
+                <div className="nav-dropdown-menu">
+                  <Link href="/about#mission" onClick={handleCloseMenus}>Our Mission</Link>
+                  <Link href="/about#team" onClick={handleCloseMenus}>Meet the Team</Link>
+                </div>
               </div>
             </div>
-            <div className="nav-stack">
-              <Link className="nav-cta" href="/meet-and-greet" onClick={handleCloseMenus}>Book A Meet & Greet</Link>
+            <div className="nav-actions">
               <Link className="nav-subcta" href={portalHref} onClick={handleCloseMenus}>{portalLabel}</Link>
+              <Link className="nav-cta" href="/meet-and-greet" onClick={handleCloseMenus}>Book A Meet & Greet</Link>
             </div>
           </div>
         </nav>

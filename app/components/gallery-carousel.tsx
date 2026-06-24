@@ -15,18 +15,30 @@ export function GalleryCarousel({ images = fallbackGalleryImages }: GalleryCarou
   const [index, setIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const galleryImages = images.length > 0 ? images : fallbackGalleryImages;
-  const activeImage = galleryImages[index];
+  const safeIndex = index >= galleryImages.length ? 0 : index;
+  const activeImage = galleryImages[safeIndex];
 
   const visibleCards = useMemo(() => {
     const offsets = [-2, -1, 0, 1, 2];
     return offsets.map((offset) => {
-      const image = galleryImages[wrapIndex(index + offset, galleryImages.length)];
+      const image = galleryImages[wrapIndex(safeIndex + offset, galleryImages.length)];
+      const positionClass =
+        offset === 0
+          ? "is-active"
+          : offset === -1
+            ? "is-left"
+            : offset === 1
+              ? "is-right"
+              : offset === -2
+                ? "is-far-left"
+                : "is-far-right";
       return {
         offset,
         image,
+        positionClass,
       };
     });
-  }, [galleryImages, index]);
+  }, [galleryImages, safeIndex]);
 
   useEffect(() => {
     if (galleryImages.length <= 1) {
@@ -40,10 +52,6 @@ export function GalleryCarousel({ images = fallbackGalleryImages }: GalleryCarou
     return () => window.clearInterval(intervalId);
   }, [galleryImages.length]);
 
-  useEffect(() => {
-    setIndex((current) => (current >= galleryImages.length ? 0 : current));
-  }, [galleryImages.length]);
-
   return (
     <>
       <section className="gallery-cinematic">
@@ -55,7 +63,11 @@ export function GalleryCarousel({ images = fallbackGalleryImages }: GalleryCarou
         <div className="gallery-cinematic-overlay" aria-hidden="true" />
 
         <div className="gallery-cinematic-copy">
-          <h1 className="gallery-title">A closer look at daily life with Pawsome Care.</h1>
+          <h1 className="gallery-title">
+            <span>A closer look at</span>
+            <span>daily life with</span>
+            <span>Pawsome Care.</span>
+          </h1>
         </div>
 
         <div className="gallery-cinematic-stage">
@@ -71,12 +83,12 @@ export function GalleryCarousel({ images = fallbackGalleryImages }: GalleryCarou
           </button>
 
           <div className="gallery-cinematic-track">
-            {visibleCards.map(({ offset, image }) => (
+            {visibleCards.map(({ offset, image, positionClass }) => (
               <button
                 key={`${String(image.id)}-${offset}`}
                 type="button"
-                className={`gallery-cinematic-card gallery-cinematic-card-${offset}`}
-                onClick={() => setIndex(wrapIndex(index + offset, galleryImages.length))}
+                className={`gallery-cinematic-card ${positionClass}`}
+                onClick={() => setIndex(wrapIndex(safeIndex + offset, galleryImages.length))}
                 aria-label={
                   offset === 0
                     ? "Current photo"
@@ -110,7 +122,7 @@ export function GalleryCarousel({ images = fallbackGalleryImages }: GalleryCarou
             <button
               key={String(image.id)}
               type="button"
-              className={`review-dot${imageIndex === index ? " is-active" : ""}`}
+              className={`review-dot${imageIndex === safeIndex ? " is-active" : ""}`}
               aria-label={`Go to photo ${imageIndex + 1}`}
               onClick={() => setIndex(imageIndex)}
             />

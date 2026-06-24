@@ -71,7 +71,7 @@ export function PortalDemo() {
   const [isSavingPetId, setIsSavingPetId] = useState<number | null>(null);
   const [isDeletingPetId, setIsDeletingPetId] = useState<number | null>(null);
   const [editingPetId, setEditingPetId] = useState<number | null>(null);
-  const [portalView, setPortalView] = useState<"home" | "pets" | "contact" | "updates">("home");
+  const [portalView, setPortalView] = useState<"home" | "pets" | "contact" | "updates" | "bookings">("home");
   const [sessionEmail, setSessionEmail] = useState("");
   const [sessionUserId, setSessionUserId] = useState("");
   const [isFirstTimeClient, setIsFirstTimeClient] = useState(false);
@@ -636,6 +636,37 @@ export function PortalDemo() {
     );
   }
 
+  function renderPortalBookingCard(booking: Booking) {
+    const extraDetails = getBookingExtraDetails(booking);
+
+    return (
+      <article className="portal-history-card portal-booking-card" key={booking.id}>
+        <div className="portal-card-topline">
+          <strong>{booking.pet_name || "Booking"}</strong>
+          <span className={`status-pill status-pill-${booking.status}`}>
+            {getBookingStatusSummary(booking.status)}
+          </span>
+        </div>
+        <p className="portal-booking-window">
+          {formatServiceLabel(booking.service_type)} |{" "}
+          {formatBookingWindow(booking.start_date, booking.end_date)}
+        </p>
+        {extraDetails.length > 0 ? (
+          <details className="portal-booking-details">
+            <summary>View stay details</summary>
+            <div className="portal-booking-details-body">
+              {extraDetails.map((item) => (
+                <p key={`${booking.id}-${item.label}`}>
+                  <strong>{item.label}:</strong> {item.value}
+                </p>
+              ))}
+            </div>
+          </details>
+        ) : null}
+      </article>
+    );
+  }
+
   async function handleUpdatePet(event: FormEvent<HTMLFormElement>, petId: number) {
     event.preventDefault();
     clearMessages();
@@ -754,6 +785,10 @@ export function PortalDemo() {
   const pendingBookings = bookings.filter((booking) => booking.status === "pending");
   const confirmedBookings = bookings.filter((booking) => booking.status === "confirmed");
   const completedBookings = bookings.filter((booking) => booking.status === "completed");
+  const cancelledBookings = bookings.filter((booking) => booking.status === "cancelled");
+  const pastBookings = [...completedBookings, ...cancelledBookings].sort((a, b) =>
+    b.start_date.localeCompare(a.start_date),
+  );
   const hasMeetAndGreetRequest = bookings.some(
     (booking) => booking.service_type === "meet-and-greet",
   );
@@ -878,6 +913,13 @@ export function PortalDemo() {
                   onClick={() => setPortalView("updates")}
                 >
                   Booking Updates
+                </button>
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => setPortalView("bookings")}
+                >
+                  Past Bookings
                 </button>
               </div>
             </div>
@@ -1158,6 +1200,44 @@ export function PortalDemo() {
                     <div className="portal-history-grid">{group.updates.map(renderPortalUpdateCard)}</div>
                   </section>
                 ))}
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {portalView === "bookings" ? (
+          <section className="portal-history" id="past-bookings">
+            <div className="portal-card-topline">
+              <div>
+                <h3>Past Bookings</h3>
+                <p className="portal-subcopy" style={{ margin: "10px 0 0" }}>
+                  Completed and cancelled stays stay here so you can reference your past requests.
+                </p>
+              </div>
+            </div>
+            {pastBookings.length === 0 ? (
+              <p className="section-copy">
+                No past bookings yet. Once a stay is completed or a request is cancelled, it will
+                appear here.
+              </p>
+            ) : (
+              <div className="portal-status-stack">
+                {getBookingStatusGroups()
+                  .filter((group) => group.status === "completed" || group.status === "cancelled")
+                  .map((group) => (
+                    <section key={group.status} className="portal-status-group">
+                      <div className="portal-status-heading">
+                        <h4>{group.label}</h4>
+                        <span>{group.items.length}</span>
+                      </div>
+                      <div className="portal-history-grid">
+                        {group.items
+                          .slice()
+                          .sort((a, b) => b.start_date.localeCompare(a.start_date))
+                          .map(renderPortalBookingCard)}
+                      </div>
+                    </section>
+                  ))}
               </div>
             )}
           </section>
