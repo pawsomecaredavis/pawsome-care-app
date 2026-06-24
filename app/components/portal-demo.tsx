@@ -63,6 +63,17 @@ type Booking = {
   created_at: string;
 };
 
+function formatServiceLabel(serviceType: string) {
+  if (serviceType === "meet-and-greet") {
+    return "Meet & Greet";
+  }
+
+  return serviceType
+    .split("-")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
 export function PortalDemo() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
