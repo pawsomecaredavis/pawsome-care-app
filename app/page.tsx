@@ -13,15 +13,15 @@ export default function Home() {
                 <span className="eyebrow">Located in Davis, CA</span>
                 <h1 className="brand-name">A calmer, friendlier daycare experience for your dog.</h1>
                 <p className="hero-copy">Pawsome Care offers attentive daytime care, a welcoming introduction process, and a smooth booking experience for pet parents who want something personal instead of generic.</p>
+                <div className="hero-actions">
+                  <Link className="button button-primary" href="/meet-and-greet">Request a Meet & Greet</Link>
+                  <a className="button button-secondary" href="#contact">Contact Us</a>
+                </div>
                 <div className="hero-highlights">
                   <span>Daycare</span>
                   <span>Boarding</span>
                   <span>Walks & Drop-Ins</span>
                   <span>Home-Based Care</span>
-                </div>
-                <div className="hero-actions">
-                  <Link className="button button-primary" href="/meet-and-greet">Request a Meet & Greet</Link>
-                  <a className="button button-secondary" href="#contact">Contact Us</a>
                 </div>
               </div>
               <div className="hero-media">

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fallbackGalleryImages, type GalleryImage, uploadGalleryImage } from "../../lib/gallery";
 import { getCurrentProfile } from "../../lib/profile";
@@ -38,8 +37,6 @@ export function GalleryPageContent() {
   const [successMessage, setSuccessMessage] = useState("");
   const [setupMessage, setSetupMessage] = useState("");
 
-  const heroLeftImage = galleryImages[0] ?? fallbackGalleryImages[0];
-  const heroRightImage = galleryImages[1] ?? heroLeftImage;
   const manageableGalleryImages = useMemo(
     () => galleryImages.filter((image): image is GalleryImage & { id: number } => typeof image.id === "number"),
     [galleryImages],
@@ -195,23 +192,6 @@ export function GalleryPageContent() {
 
   return (
     <section className="page-card gallery-page">
-      <div className="gallery-hero">
-        <figure className="gallery-hero-arch gallery-hero-left">
-          <img src={heroLeftImage.image_url} alt={heroLeftImage.alt_text} />
-        </figure>
-        <div className="gallery-hero-copy">
-          <span className="eyebrow">Photo Gallery</span>
-          <h1 className="gallery-title">A closer look at daily life inside Pawsome Care.</h1>
-          <p className="gallery-lead">
-            Quiet moments, playful routines, and a home environment designed to feel calm,
-            personal, and familiar.
-          </p>
-        </div>
-        <figure className="gallery-hero-arch gallery-hero-right">
-          <img src={heroRightImage.image_url} alt={heroRightImage.alt_text} />
-        </figure>
-      </div>
-
       {isAdmin && !isLoadingAdmin ? (
         <section className="gallery-admin-panel">
           <div className="gallery-admin-copy">
@@ -287,30 +267,6 @@ export function GalleryPageContent() {
 
       <section className="gallery-carousel-section" aria-label="Gallery highlights">
         {isLoadingGallery ? <p className="portal-loading-text">Loading gallery photos...</p> : <GalleryCarousel images={galleryImages} />}
-      </section>
-
-      <section className="gallery-about-strip" aria-label="Know more about us">
-        <div className="gallery-about-copy">
-          <span className="eyebrow">Know More About Us</span>
-          <h2 className="gallery-section-title">The people and dogs behind the calm, home-based routine</h2>
-          <p className="gallery-lead">
-            A few more moments that reflect the personality, warmth, and structure behind Pawsome Care.
-          </p>
-        </div>
-        <div className="gallery-about-grid">
-          <Link className="gallery-about-card" href="/about#team">
-            <img src="/Jennifer-dog.jpeg" alt="Jennifer with a dog" />
-            <span>Meet Jennifer</span>
-          </Link>
-          <Link className="gallery-about-card" href="/about#team">
-            <img src={heroLeftImage.image_url} alt={heroLeftImage.alt_text} />
-            <span>Life with resident dogs</span>
-          </Link>
-          <Link className="gallery-about-card" href="/about#mission">
-            <img src="/homepage-dogs.png" alt="Three dogs at Pawsome Care" />
-            <span>See our care philosophy</span>
-          </Link>
-        </div>
       </section>
     </section>
   );

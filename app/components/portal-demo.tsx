@@ -445,7 +445,6 @@ export function PortalDemo() {
       return;
     }
 
-    setSuccessMessage("Welcome back. Your portal is ready.");
     form.reset();
   }
 
@@ -805,8 +804,6 @@ export function PortalDemo() {
         </div>
 
         {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
-        {successMessage ? <p className="auth-success">{successMessage}</p> : null}
-
         <section className="portal-home-shell">
           <div className="portal-home-copy">
             <span className="portal-kicker">Portal Home</span>
