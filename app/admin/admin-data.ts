@@ -32,11 +32,16 @@ export type Booking = {
   service_type: string;
   start_date: string;
   end_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
   status: string;
   notes: string | null;
   drop_off_note: string | null;
   pick_up_note: string | null;
   special_instructions: string | null;
+  estimated_price?: number | null;
+  final_price?: number | null;
+  pricing_override_note?: string | null;
   created_at: string;
 };
 

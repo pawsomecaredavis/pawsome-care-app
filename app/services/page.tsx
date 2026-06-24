@@ -3,10 +3,18 @@
 import { useState } from "react";
 import { AvailabilityCalendar } from "../components/availability-calendar";
 import { SiteShell } from "../components/site-shell";
+import {
+  BOARDING_LATE_PICKUP_FULL_DAY_RATE,
+  BOARDING_LATE_PICKUP_HALF_DAY_RATE,
+  BOARDING_NIGHT_RATE,
+  DAYCARE_BASE_RATE,
+  formatCurrency,
+  MEET_AND_GREET_RATE,
+} from "../../lib/booking-pricing";
 
 const services = [
-  { name: "Dog Daycare", price: "$44/day", text: "Structured daytime care in a home setting with potty breaks, supervision, play, rest time, and photo updates throughout the day." },
-  { name: "Dog Boarding", price: "$67/night", text: "Overnight care for dogs who do best with a personal home environment, regular routines, and close attention instead of a crowded kennel setup." },
+  { name: "Dog Daycare", price: `${formatCurrency(DAYCARE_BASE_RATE)}/day`, text: "Structured daytime care in a home setting with potty breaks, supervision, play, rest time, and photo updates throughout the day." },
+  { name: "Dog Boarding", price: `${formatCurrency(BOARDING_NIGHT_RATE)}/night`, text: "Overnight care for dogs who do best with a personal home environment, regular routines, and close attention instead of a crowded kennel setup." },
   { name: "Dog Walking", price: "$25/walk", text: "Reliable 30-minute neighborhood walks focused on exercise, enrichment, and consistency for dogs who need a midday break or extra movement." },
   { name: "Pet Drop-In", price: "$25/visit", text: "Quick but attentive 30-minute home visits for feeding, potty breaks, water refresh, medication routines, and check-ins while you are away." },
 ];
@@ -51,6 +59,12 @@ export default function ServicesPage() {
             <div className="rates-note">
               <h3>Additional Rates</h3>
               <p>Second dog is 30% off the base rate for the same booking.</p>
+              <p>
+                Meet &amp; Greets are complimentary. Boarding regular rate is{" "}
+                {formatCurrency(BOARDING_NIGHT_RATE)}/night. Late pickup adds{" "}
+                {formatCurrency(BOARDING_LATE_PICKUP_HALF_DAY_RATE)} for 2-8 extra hours or{" "}
+                {formatCurrency(BOARDING_LATE_PICKUP_FULL_DAY_RATE)} for more than 8 hours.
+              </p>
               <p>Holiday rates <button className="inline-info" type="button" onClick={() => setModal("holiday")}>!</button></p>
             </div>
             <AvailabilityCalendar />
@@ -80,7 +94,7 @@ export default function ServicesPage() {
               </div>
             </div>
           </section>
-          {modal ? <div className="modal-backdrop" onClick={() => setModal(null)}><div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}><div className="modal-header"><button className="modal-back" type="button" onClick={() => setModal(null)} aria-label="Close modal">&#8592;</button><h2>{modal === "holiday" ? "Holiday Rate" : modal === "walking" ? "Dog Walking Rates" : "Pet Drop-In Rates"}</h2></div><div className="modal-body">{modal === "holiday" ? <><p>Stays that include any of the following dates will be priced at the holiday rate:</p><ul className="modal-list"><li>May 22-25, 2026</li><li>Jun 19-21, 2026</li><li>Jul 3-5, 2026</li><li>Sep 4-7, 2026</li><li>Nov 26-29, 2026</li><li>Dec 24, 2026 - Jan 3, 2027</li></ul><div className="modal-rates"><p>Daycare: $64/day</p><p>Boarding: $87/night</p><p>Dog Walking: $30/walk</p><p>Pet Drop-In: $30/visit</p></div></> : null}{modal === "walking" ? <div className="modal-rates"><p>Standard dog walking bookings are 30 minutes.</p><p>Dog Walking: 60 minutes for $40</p></div> : null}{modal === "dropin" ? <div className="modal-rates"><p>Standard pet drop-in bookings are 30 minutes.</p><p>Pet Drop-In: 60 minutes for $40</p></div> : null}</div><button className="modal-close" type="button" onClick={() => setModal(null)}>Close</button></div></div> : null}
+          {modal ? <div className="modal-backdrop" onClick={() => setModal(null)}><div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}><div className="modal-header"><button className="modal-back" type="button" onClick={() => setModal(null)} aria-label="Close modal">&#8592;</button><h2>{modal === "holiday" ? "Holiday Rate" : modal === "walking" ? "Dog Walking Rates" : "Pet Drop-In Rates"}</h2></div><div className="modal-body">{modal === "holiday" ? <><p>Stays that include any of the following dates will be priced at the holiday rate:</p><ul className="modal-list"><li>May 22-25, 2026</li><li>Jun 19-21, 2026</li><li>Jul 3-5, 2026</li><li>Sep 4-7, 2026</li><li>Nov 26-29, 2026</li><li>Dec 24, 2026 - Jan 3, 2027</li></ul><div className="modal-rates"><p>Daycare: $64/day</p><p>Boarding: $87/night</p><p>Meet &amp; Greet: {formatCurrency(MEET_AND_GREET_RATE)}</p><p>Dog Walking: $30/walk</p><p>Pet Drop-In: $30/visit</p></div></> : null}{modal === "walking" ? <div className="modal-rates"><p>Standard dog walking bookings are 30 minutes.</p><p>Dog Walking: 60 minutes for $40</p></div> : null}{modal === "dropin" ? <div className="modal-rates"><p>Standard pet drop-in bookings are 30 minutes.</p><p>Pet Drop-In: 60 minutes for $40</p></div> : null}</div><button className="modal-close" type="button" onClick={() => setModal(null)}>Close</button></div></div> : null}
         </div>
       </main>
     </SiteShell>

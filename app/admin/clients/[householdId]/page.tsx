@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import {
+  calculateBookingPricing,
+  formatCurrency,
+  formatTimeLabel,
+  getBookingDisplayPrice,
+} from "../../../../lib/booking-pricing";
 import { uploadDailyUpdatePhotos } from "../../../../lib/daily-update-photos";
 import { isLikelyValidPhone, normalizePhoneForStorage } from "../../../../lib/phone";
 import { getCurrentProfile, type Profile } from "../../../../lib/profile";
@@ -38,11 +44,16 @@ type Booking = {
   service_type: string;
   start_date: string;
   end_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
   status: string;
   notes: string | null;
   drop_off_note: string | null;
   pick_up_note: string | null;
   special_instructions: string | null;
+  estimated_price?: number | null;
+  final_price?: number | null;
+  pricing_override_note?: string | null;
   created_at: string;
 };
 
@@ -98,6 +109,38 @@ function formatFriendlyDate(dateKey: string) {
   });
 }
 
+function formatBookingSchedule(booking: Booking) {
+  if (booking.service_type === "meet-and-greet") {
+    return `${booking.start_date}${booking.start_time ? ` at ${formatTimeLabel(booking.start_time)}` : ""}`;
+  }
+
+  if (booking.service_type === "daycare") {
+    return `${booking.start_date}${booking.start_time ? ` | ${formatTimeLabel(booking.start_time)}` : ""}${booking.end_time ? ` to ${formatTimeLabel(booking.end_time)}` : ""}`;
+  }
+
+  return `${booking.start_date}${booking.start_time ? ` | ${formatTimeLabel(booking.start_time)}` : ""} to ${booking.end_date}${booking.end_time ? ` | ${formatTimeLabel(booking.end_time)}` : ""}`;
+}
+
+function formatBookingStartLabel(booking: Booking) {
+  if (booking.service_type === "meet-and-greet") {
+    return `${booking.start_date}${booking.start_time ? ` at ${formatTimeLabel(booking.start_time)}` : " | Time not set yet"}`;
+  }
+
+  return `${booking.start_date}${booking.start_time ? ` | ${formatTimeLabel(booking.start_time)}` : " | Time not set yet"}`;
+}
+
+function formatBookingEndLabel(booking: Booking) {
+  if (booking.service_type === "meet-and-greet") {
+    return "Single appointment";
+  }
+
+  if (booking.service_type === "daycare") {
+    return `${booking.start_date}${booking.end_time ? ` | ${formatTimeLabel(booking.end_time)}` : " | Time not set yet"}`;
+  }
+
+  return `${booking.end_date}${booking.end_time ? ` | ${formatTimeLabel(booking.end_time)}` : " | Time not set yet"}`;
+}
+
 export default function AdminClientProfilePage({
   params,
 }: {
@@ -118,11 +161,14 @@ export default function AdminClientProfilePage({
   const [isSavingUpdateId, setIsSavingUpdateId] = useState<number | null>(null);
   const [isRemovingUpdatePhotoId, setIsRemovingUpdatePhotoId] = useState<number | null>(null);
   const [isUpdatingBookingId, setIsUpdatingBookingId] = useState<number | null>(null);
+  const [isSavingPricing, setIsSavingPricing] = useState(false);
   const [editingUpdateId, setEditingUpdateId] = useState<number | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [selectedUpdateBookingId, setSelectedUpdateBookingId] = useState("");
+  const [pricingDraftAmount, setPricingDraftAmount] = useState("");
+  const [pricingDraftNote, setPricingDraftNote] = useState("");
 
   useEffect(() => {
     async function loadClientProfile() {
@@ -350,6 +396,51 @@ export default function AdminClientProfilePage({
     setSuccessMessage(`Booking updated to ${nextStatus}.`);
   }
 
+  async function handleUpdateBookingPricing() {
+    if (!focusedBooking) {
+      setErrorMessage("Choose a stay before saving pricing.");
+      return;
+    }
+
+    const parsedAmount = Number(pricingDraftAmount);
+
+    if (Number.isNaN(parsedAmount) || parsedAmount < 0) {
+      setErrorMessage("Enter a valid final price before saving.");
+      return;
+    }
+
+    setErrorMessage("");
+    setSuccessMessage("");
+    setIsSavingPricing(true);
+
+    const { data, error } = await supabase.rpc("admin_update_booking_pricing", {
+      target_booking_id: focusedBooking.id,
+      next_final_price: Number(parsedAmount.toFixed(2)),
+      override_note: pricingDraftNote.trim() || null,
+    });
+
+    setIsSavingPricing(false);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    const updatedBooking = Array.isArray(data) ? data[0] : data;
+
+    if (!updatedBooking) {
+      setErrorMessage("Pricing was saved, but we could not read the booking back.");
+      return;
+    }
+
+    setBookings((current) =>
+      current.map((booking) =>
+        booking.id === focusedBooking.id ? ({ ...booking, ...(updatedBooking as Booking) }) : booking,
+      ),
+    );
+    setSuccessMessage("Booking price saved.");
+  }
+
   async function handleCreateDailyUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
@@ -389,6 +480,12 @@ export default function AdminClientProfilePage({
     }
 
     const selectedBooking = bookings.find((booking) => booking.id === bookingId);
+
+    if (selectedBooking?.status !== "confirmed") {
+      setIsSubmittingUpdate(false);
+      setErrorMessage("Daily updates can only be published for confirmed stays.");
+      return;
+    }
 
     if (!selectedBooking?.pet_id) {
       setIsSubmittingUpdate(false);
@@ -843,6 +940,15 @@ export default function AdminClientProfilePage({
     bookings.find((booking) => booking.id === requestedBookingId) ??
     null;
   const focusedBookingIsMeetAndGreet = focusedBooking?.service_type === "meet-and-greet";
+  const focusedBookingPricingEstimate = focusedBooking
+    ? calculateBookingPricing({
+        serviceType: focusedBooking.service_type,
+        startDate: focusedBooking.start_date,
+        endDate: focusedBooking.end_date,
+        startTime: focusedBooking.start_time,
+        endTime: focusedBooking.end_time,
+      })
+    : null;
   const focusedBookingUpdates = focusedBooking
     ? dailyUpdates.filter((update) => update.booking_id === focusedBooking.id)
     : [];
@@ -850,8 +956,12 @@ export default function AdminClientProfilePage({
   const focusedBookingTodaysUpdates = focusedBookingUpdates.filter(
     (update) => formatDayKey(new Date(update.created_at)) === today,
   );
+  const focusedBookingCanPublishUpdate =
+    Boolean(focusedBooking) &&
+    focusedBooking?.status === "confirmed" &&
+    !focusedBookingIsMeetAndGreet;
   const canExportFocusedBookingPdf =
-    !focusedBookingIsMeetAndGreet &&
+    focusedBookingCanPublishUpdate &&
     Boolean(focusedBooking && focusedBookingTodaysUpdates.length > 0);
   const isStayDetailMode = requestedBookingId > 0 && Boolean(focusedBooking);
 
@@ -876,6 +986,23 @@ export default function AdminClientProfilePage({
       return String(preferredBookingIds[0]);
     });
   }, [bookings, dailyUpdates, requestedBookingId]);
+
+  useEffect(() => {
+    if (!focusedBooking || focusedBooking.service_type === "meet-and-greet") {
+      setPricingDraftAmount("");
+      setPricingDraftNote("");
+      return;
+    }
+
+    const defaultAmount =
+      focusedBooking.final_price ?? focusedBooking.estimated_price ?? focusedBookingPricingEstimate?.estimatedPrice;
+
+    setPricingDraftAmount(typeof defaultAmount === "number" ? String(defaultAmount) : "");
+    setPricingDraftNote(focusedBooking.pricing_override_note || "");
+  }, [
+    focusedBooking,
+    focusedBookingPricingEstimate?.estimatedPrice,
+  ]);
 
   function handleSaveFocusedStayPdf() {
     if (typeof window === "undefined" || !focusedBooking) {
@@ -1064,10 +1191,14 @@ export default function AdminClientProfilePage({
                 </p>
                 <div className="admin-grid" style={{ marginTop: "18px" }}>
                   <article className="admin-card">
-                    <span className="portal-kicker">Stay Dates</span>
-                    <h3>
-                      {focusedBooking.start_date} to {focusedBooking.end_date}
-                    </h3>
+                    <span className="portal-kicker">Schedule</span>
+                    <h3>{formatServiceLabel(focusedBooking.service_type)}</h3>
+                    <p>
+                      <strong>Drop-off:</strong> {formatBookingStartLabel(focusedBooking)}
+                    </p>
+                    <p>
+                      <strong>Pick-up:</strong> {formatBookingEndLabel(focusedBooking)}
+                    </p>
                     <p>Booking ID #{focusedBooking.id}</p>
                   </article>
                   <article className="admin-card">
@@ -1084,6 +1215,24 @@ export default function AdminClientProfilePage({
                     <h3>{focusedBooking.pet_name || "Not linked yet"}</h3>
                     <p>{household?.contact_email || household?.contact_phone || "No contact details yet"}</p>
                   </article>
+                  <article className="admin-card">
+                    <span className="portal-kicker">Pricing</span>
+                    <h3>
+                      {focusedBookingIsMeetAndGreet
+                        ? "Free"
+                        : getBookingDisplayPrice(
+                            focusedBooking.estimated_price ?? focusedBookingPricingEstimate?.estimatedPrice,
+                            focusedBooking.final_price,
+                          )}
+                    </h3>
+                    <p>
+                      {focusedBookingIsMeetAndGreet
+                        ? "Meet & greet appointments are always complimentary."
+                        : focusedBooking.final_price != null
+                          ? "Final price saved by admin."
+                          : "Showing the current estimate from the booking details."}
+                    </p>
+                  </article>
                   {!focusedBookingIsMeetAndGreet ? (
                     <article className="admin-card">
                       <span className="portal-kicker">Today&apos;s Send Status</span>
@@ -1099,19 +1248,84 @@ export default function AdminClientProfilePage({
                 <div className="admin-list" style={{ marginTop: "18px" }}>
                   <article className="admin-list-item">
                     <p>
-                      <strong>Notes:</strong> {focusedBooking.notes || "No notes yet"}
+                      <strong>Request Notes:</strong> {focusedBooking.notes || "No notes yet"}
                     </p>
-                    <p>
-                      <strong>Drop-off:</strong>{" "}
-                      {focusedBooking.drop_off_note || "No drop-off note yet"}
-                    </p>
-                    <p>
-                      <strong>Pick-up:</strong> {focusedBooking.pick_up_note || "No pick-up note yet"}
-                    </p>
-                    <p>
-                      <strong>Special instructions:</strong>{" "}
-                      {focusedBooking.special_instructions || "No special instructions yet"}
-                    </p>
+                    {!focusedBookingIsMeetAndGreet ? (
+                      <div className="admin-price-panel">
+                        <div className="portal-status-heading">
+                          <h4>Price Breakdown</h4>
+                          <span>
+                            {getBookingDisplayPrice(
+                              focusedBooking.estimated_price ?? focusedBookingPricingEstimate?.estimatedPrice,
+                              focusedBooking.final_price,
+                            )}
+                          </span>
+                        </div>
+                        <div className="admin-price-lines">
+                          {(focusedBookingPricingEstimate?.lineItems ?? []).map((lineItem) => (
+                            <div className="admin-price-line" key={lineItem.label}>
+                              <span>{lineItem.label}</span>
+                              <strong>{formatCurrency(lineItem.amount)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                        {focusedBookingPricingEstimate && focusedBookingPricingEstimate.latePickupTier !== "none" ? (
+                          <p className="admin-priority-note">
+                            Pick-up is currently {focusedBookingPricingEstimate.latePickupHours.toFixed(1)} hours
+                            past the drop-off time, so the estimate includes a{" "}
+                            {focusedBookingPricingEstimate.latePickupTier === "full-day" ? "full-day" : "half-day"} extension.
+                          </p>
+                        ) : null}
+                        <div className="field-grid auth-grid" style={{ marginTop: "16px" }}>
+                          <div className="field field-full">
+                            <label htmlFor="finalBookingPrice">Final Price</label>
+                            <input
+                              type="number"
+                              id="finalBookingPrice"
+                              min="0"
+                              step="0.01"
+                              value={pricingDraftAmount}
+                              onChange={(event) => setPricingDraftAmount(event.target.value)}
+                            />
+                          </div>
+                          <div className="field field-full">
+                            <label htmlFor="bookingPricingNote">Price Note</label>
+                            <textarea
+                              id="bookingPricingNote"
+                              rows={3}
+                              value={pricingDraftNote}
+                              onChange={(event) => setPricingDraftNote(event.target.value)}
+                              placeholder="Optional note for discounts, waived fees, or manual adjustments"
+                            />
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+                          <button
+                            className="button button-secondary"
+                            type="button"
+                            onClick={() => void handleUpdateBookingPricing()}
+                            disabled={isSavingPricing}
+                          >
+                            {isSavingPricing ? "Saving..." : "Save Final Price"}
+                          </button>
+                          <button
+                            className="button button-secondary"
+                            type="button"
+                            onClick={() => {
+                              const resetAmount =
+                                focusedBooking.estimated_price ?? focusedBookingPricingEstimate?.estimatedPrice;
+                              setPricingDraftAmount(
+                                typeof resetAmount === "number" ? String(resetAmount) : "",
+                              );
+                              setPricingDraftNote("");
+                            }}
+                            disabled={isSavingPricing}
+                          >
+                            Reset to Estimate
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                     <div
                       style={{
                         display: "flex",
@@ -1120,7 +1334,7 @@ export default function AdminClientProfilePage({
                         marginTop: "14px",
                       }}
                     >
-                      {!focusedBookingIsMeetAndGreet ? (
+                      {focusedBookingCanPublishUpdate ? (
                         <a
                           className="button button-primary"
                           href="#publish-daily-update"
@@ -1165,7 +1379,7 @@ export default function AdminClientProfilePage({
                           {isUpdatingBookingId === focusedBooking.id ? "Saving..." : "Mark Completed"}
                         </button>
                       ) : null}
-                      {household?.contact_email ? (
+                      {focusedBookingCanPublishUpdate && household?.contact_email ? (
                         <a className="button button-secondary" href={getFocusedStayMailtoHref()}>
                           Open Email Draft
                         </a>
@@ -1383,7 +1597,7 @@ export default function AdminClientProfilePage({
                 </>
               ) : null}
 
-              {!focusedBookingIsMeetAndGreet ? (
+              {focusedBookingCanPublishUpdate ? (
                 <section className="form-card admin-form-card" id="publish-daily-update">
                 <h2>Publish Daily Update</h2>
                 <p className="section-copy">
@@ -1460,17 +1674,6 @@ export default function AdminClientProfilePage({
                               ))}
                             </optgroup>
                           ) : null}
-                          {bookings.filter((booking) => booking.status !== "confirmed").length > 0 ? (
-                            <optgroup label="Other Bookings">
-                              {bookings
-                                .filter((booking) => booking.status !== "confirmed")
-                                .map((booking) => (
-                                  <option key={booking.id} value={booking.id}>
-                                    {booking.pet_name || "Pet"} | {formatServiceLabel(booking.service_type)} | {booking.start_date} | {booking.status}
-                                  </option>
-                                ))}
-                            </optgroup>
-                          ) : null}
                         </select>
                       </div>
                     )}
@@ -1494,11 +1697,19 @@ export default function AdminClientProfilePage({
                   <button
                     className="submit-button"
                     type="submit"
-                    disabled={isSubmittingUpdate || isLoading || bookings.length === 0}
+                    disabled={isSubmittingUpdate || isLoading || confirmedBookings.length === 0}
                   >
                     {isSubmittingUpdate ? "Uploading photos and publishing..." : "Publish Daily Update"}
                   </button>
                 </form>
+                </section>
+              ) : focusedBooking && !focusedBookingIsMeetAndGreet ? (
+                <section className="form-card admin-form-card" id="publish-daily-update">
+                  <h2>Daily Updates Start After Confirmation</h2>
+                  <p className="section-copy">
+                    This booking is currently <strong>{focusedBooking.status}</strong>. Confirm the stay
+                    first, then the daily update workflow will open here.
+                  </p>
                 </section>
               ) : null}
             </div>
@@ -1569,12 +1780,6 @@ export default function AdminClientProfilePage({
                               <p>Start: {booking.start_date}</p>
                               <p>End: {booking.end_date}</p>
                               <p>Notes: {booking.notes || "No notes yet"}</p>
-                              <p>Drop-off: {booking.drop_off_note || "No drop-off note yet"}</p>
-                              <p>Pick-up: {booking.pick_up_note || "No pick-up note yet"}</p>
-                              <p>
-                                Special instructions:{" "}
-                                {booking.special_instructions || "No special instructions yet"}
-                              </p>
                               <div
                                 style={{
                                   display: "flex",

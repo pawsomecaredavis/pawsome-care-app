@@ -12,6 +12,11 @@ import {
   getClientHouseholds,
   getHouseholdLabel,
 } from "../admin-data";
+import {
+  calculateBookingPricing,
+  formatTimeLabel,
+  getBookingDisplayPrice,
+} from "../../../lib/booking-pricing";
 import { supabase } from "../../../lib/supabase";
 
 type BookingGroup = {
@@ -30,6 +35,33 @@ function formatServiceLabel(serviceType: string) {
     .split("-")
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+}
+
+function formatBookingSchedule(booking: Booking) {
+  if (booking.service_type === "meet-and-greet") {
+    return `${booking.start_date}${booking.start_time ? ` at ${formatTimeLabel(booking.start_time)}` : ""}`;
+  }
+
+  if (booking.service_type === "daycare") {
+    return `${booking.start_date}${booking.start_time ? ` | ${formatTimeLabel(booking.start_time)}` : ""}${booking.end_time ? ` to ${formatTimeLabel(booking.end_time)}` : ""}`;
+  }
+
+  return `${booking.start_date}${booking.start_time ? ` | ${formatTimeLabel(booking.start_time)}` : ""} to ${booking.end_date}${booking.end_time ? ` | ${formatTimeLabel(booking.end_time)}` : ""}`;
+}
+
+function getBookingPricePreview(booking: Booking) {
+  const computedEstimate = calculateBookingPricing({
+    serviceType: booking.service_type,
+    startDate: booking.start_date,
+    endDate: booking.end_date,
+    startTime: booking.start_time,
+    endTime: booking.end_time,
+  }).estimatedPrice;
+
+  return getBookingDisplayPrice(
+    booking.estimated_price ?? computedEstimate,
+    booking.final_price,
+  );
 }
 
 export default function AdminBookingsPage() {
@@ -335,7 +367,7 @@ export default function AdminBookingsPage() {
                               </span>
                             </div>
                             <p>
-                              <strong>Stay Dates:</strong> {booking.start_date} to {booking.end_date}
+                              <strong>Schedule:</strong> {formatBookingSchedule(booking)}
                             </p>
                             <p>
                               <strong>Pet:</strong> {booking.pet_name || "Not linked yet"}
@@ -343,6 +375,19 @@ export default function AdminBookingsPage() {
                             <p>
                               <strong>Service:</strong> {formatServiceLabel(booking.service_type)}
                             </p>
+                            {booking.service_type !== "meet-and-greet" ? (
+                              <p>
+                                <strong>Price:</strong>{" "}
+                                {getBookingPricePreview(booking)}
+                              </p>
+                            ) : (
+                              <p>
+                                <strong>Price:</strong> Complimentary
+                              </p>
+                            )}
+                            {booking.pricing_override_note ? (
+                              <p>Price note: {booking.pricing_override_note}</p>
+                            ) : null}
                             {booking.notes ? <p>Notes: {booking.notes}</p> : null}
                             {booking.drop_off_note ? <p>Drop-off: {booking.drop_off_note}</p> : null}
                             {booking.pick_up_note ? <p>Pick-up: {booking.pick_up_note}</p> : null}

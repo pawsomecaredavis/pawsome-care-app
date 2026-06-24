@@ -1199,6 +1199,18 @@ textarea {
   margin-top: 12px;
 }
 
+.admin-price-panel {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(139, 78, 40, 0.12);
+  background: rgba(255, 249, 242, 0.92);
+}
+
+.admin-price-lines {
+  margin-top: 12px;
+}
+
 .admin-filter-row {
   display: flex;
   gap: 10px;
@@ -1485,6 +1497,37 @@ textarea {
   margin: 0;
   color: #6e5647;
   line-height: 1.65;
+}
+
+.portal-pricing-estimate {
+  margin-top: 20px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(139, 78, 40, 0.12);
+  background: rgba(255, 249, 242, 0.9);
+}
+
+.portal-pricing-estimate h3 {
+  margin: 10px 0 0;
+  font-size: 1.55rem;
+}
+
+.portal-pricing-lines {
+  margin-top: 14px;
+}
+
+.portal-pricing-line,
+.admin-price-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.portal-pricing-line + .portal-pricing-line,
+.admin-price-line + .admin-price-line {
+  border-top: 1px solid rgba(139, 78, 40, 0.1);
 }
 
 .portal-summary-card strong {

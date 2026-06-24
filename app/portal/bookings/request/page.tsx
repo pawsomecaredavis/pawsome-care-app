@@ -14,6 +14,15 @@ import {
   getContiguousAvailableDates,
   isRangeAvailable,
 } from "../../../../lib/availability";
+import {
+  BOARDING_LATE_PICKUP_FULL_DAY_RATE,
+  BOARDING_LATE_PICKUP_HALF_DAY_RATE,
+  BOARDING_NIGHT_RATE,
+  DAYCARE_BASE_RATE,
+  calculateBookingPricing,
+  formatCurrency,
+  formatTimeLabel,
+} from "../../../../lib/booking-pricing";
 import { getCurrentProfile, getIsFirstTimeClient } from "../../../../lib/profile";
 import { supabase } from "../../../../lib/supabase";
 
@@ -56,9 +65,13 @@ export default function PortalRequestBookingPage() {
   const [selectedServiceType, setSelectedServiceType] = useState("boarding");
   const [selectedStartDate, setSelectedStartDate] = useState("");
   const [selectedEndDate, setSelectedEndDate] = useState("");
+  const [selectedStartTime, setSelectedStartTime] = useState("");
+  const [selectedEndTime, setSelectedEndTime] = useState("");
   const now = useMemo(() => new Date(), []);
   const availabilityWindow = useMemo(() => getAvailabilityWindow(4, now), [now]);
   const isMeetAndGreetRequest = selectedServiceType === "meet-and-greet";
+  const isBoardingRequest = selectedServiceType === "boarding";
+  const isDaycareRequest = selectedServiceType === "daycare";
   const hasMeetAndGreetRequest = useMemo(
     () => existingBookings.some((booking) => booking.service_type === "meet-and-greet"),
     [existingBookings],
@@ -197,9 +210,30 @@ export default function PortalRequestBookingPage() {
       ),
     [availabilityRows, availabilityWindow.endDate, availabilityWindow.startDate, now],
   );
+  const availableStartDateSet = useMemo(
+    () => new Set(availableStartDates),
+    [availableStartDates],
+  );
+  const availableBoardingStartDates = useMemo(
+    () =>
+      availableStartDates.filter(
+        (date) =>
+          getContiguousAvailableDates(
+            availabilityRows,
+            date,
+            availabilityWindow.endDate,
+            now,
+          ).length > 1,
+      ),
+    [availabilityRows, availabilityWindow.endDate, availableStartDates, now],
+  );
+  const availableBoardingStartDateSet = useMemo(
+    () => new Set(availableBoardingStartDates),
+    [availableBoardingStartDates],
+  );
 
   const availableEndDates = useMemo(() => {
-    if (!selectedStartDate) {
+    if (!isBoardingRequest || !selectedStartDate) {
       return [];
     }
 
@@ -208,8 +242,13 @@ export default function PortalRequestBookingPage() {
       selectedStartDate,
       availabilityWindow.endDate,
       now,
-    );
-  }, [availabilityRows, availabilityWindow.endDate, now, selectedStartDate]);
+    ).slice(1);
+  }, [availabilityRows, availabilityWindow.endDate, isBoardingRequest, now, selectedStartDate]);
+  const availableEndDateSet = useMemo(() => new Set(availableEndDates), [availableEndDates]);
+  const hasInvalidBoardingStartDate =
+    isBoardingRequest &&
+    Boolean(selectedStartDate) &&
+    !availableBoardingStartDateSet.has(selectedStartDate);
 
   useEffect(() => {
     setSelectedStartDate((current) =>
@@ -224,6 +263,11 @@ export default function PortalRequestBookingPage() {
   }, [mustBookMeetAndGreet]);
 
   useEffect(() => {
+    if (!isBoardingRequest) {
+      setSelectedEndDate(selectedStartDate);
+      return;
+    }
+
     if (!selectedStartDate) {
       setSelectedEndDate("");
       return;
@@ -234,9 +278,29 @@ export default function PortalRequestBookingPage() {
         return current;
       }
 
-      return availableEndDates[0] ?? "";
+      return "";
     });
-  }, [availableEndDates, selectedStartDate]);
+  }, [availableEndDates, isBoardingRequest, selectedStartDate]);
+
+  const effectiveEndDate = isBoardingRequest ? selectedEndDate : selectedStartDate;
+  const pricingEstimate = useMemo(
+    () =>
+      calculateBookingPricing({
+        serviceType: selectedServiceType,
+        startDate: selectedStartDate,
+        endDate: effectiveEndDate,
+        startTime: selectedStartTime,
+        endTime: isMeetAndGreetRequest ? null : selectedEndTime,
+      }),
+    [
+      effectiveEndDate,
+      isMeetAndGreetRequest,
+      selectedEndTime,
+      selectedServiceType,
+      selectedStartDate,
+      selectedStartTime,
+    ],
+  );
 
   function formatBookingDate(dateString: string) {
     return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-US", {
@@ -244,6 +308,17 @@ export default function PortalRequestBookingPage() {
       day: "numeric",
       year: "numeric",
     });
+  }
+
+  function getNextDate(dateString: string) {
+    const date = new Date(`${dateString}T00:00:00`);
+    date.setDate(date.getDate() + 1);
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
   }
 
   async function handleRequestBooking(event: FormEvent<HTMLFormElement>) {
@@ -263,13 +338,10 @@ export default function PortalRequestBookingPage() {
     const petId = rawPetId ? Number(rawPetId) : null;
     const serviceType = selectedServiceType.trim();
     const startDate = selectedStartDate.trim();
-    const endDate = (isMeetAndGreetRequest ? selectedStartDate : selectedEndDate).trim();
+    const endDate = (isBoardingRequest ? selectedEndDate : selectedStartDate).trim();
+    const startTime = selectedStartTime.trim();
+    const endTime = (isMeetAndGreetRequest ? "" : selectedEndTime).trim();
     const notes = String(formData.get("requestNotes") || "").trim();
-    const dropOffNote = String(formData.get("requestDropOffNote") || "").trim();
-    const pickUpNote = String(formData.get("requestPickUpNote") || "").trim();
-    const specialInstructions = String(
-      formData.get("requestSpecialInstructions") || "",
-    ).trim();
 
     if (mustBookMeetAndGreet && serviceType !== "meet-and-greet") {
       setIsSubmitting(false);
@@ -295,6 +367,55 @@ export default function PortalRequestBookingPage() {
       return;
     }
 
+    if (!startTime || (!isMeetAndGreetRequest && !endTime)) {
+      setIsSubmitting(false);
+      setErrorMessage(
+        isMeetAndGreetRequest
+          ? "Please choose your preferred meet & greet time."
+          : "Please add both drop-off and pick-up times for this request.",
+      );
+      return;
+    }
+
+    if (isBoardingRequest && startDate === endDate) {
+      setIsSubmitting(false);
+      setErrorMessage("Boarding requests need a pick-up date after the drop-off date.");
+      return;
+    }
+
+    if (
+      (isDaycareRequest || isBoardingRequest) &&
+      startTime &&
+      endTime &&
+      endDate === startDate &&
+      endTime <= startTime
+    ) {
+      setIsSubmitting(false);
+      setErrorMessage("Pick-up time needs to be later than drop-off time on the same date.");
+      return;
+    }
+
+    if (
+      (isBoardingRequest && !availableBoardingStartDateSet.has(startDate)) ||
+      (!isBoardingRequest && !availableStartDateSet.has(startDate))
+    ) {
+      setIsSubmitting(false);
+      setErrorMessage(
+        isBoardingRequest
+          ? "Please choose a drop-off date that has an open overnight booking range."
+          : "Please choose an available date from the booking calendar.",
+      );
+      return;
+    }
+
+    if (isBoardingRequest && !availableEndDateSet.has(endDate)) {
+      setIsSubmitting(false);
+      setErrorMessage(
+        "Please choose a pick-up date that stays within the available booking range.",
+      );
+      return;
+    }
+
     if (availabilityMonths.length > 0 && !isRangeAvailable(availabilityMonths, startDate, endDate)) {
       setIsSubmitting(false);
       setErrorMessage(
@@ -303,18 +424,43 @@ export default function PortalRequestBookingPage() {
       return;
     }
 
-    const { error } = await supabase.from("bookings").insert({
+    const bookingPayload = {
       household_id: household.id,
       pet_id: isMeetAndGreetRequest ? petId : petId,
       service_type: serviceType,
       start_date: startDate,
       end_date: endDate,
+      start_time: startTime || null,
+      end_time: isMeetAndGreetRequest ? null : endTime || null,
+      estimated_price: pricingEstimate.estimatedPrice,
       status: "pending",
       notes: notes || null,
-      drop_off_note: dropOffNote || null,
-      pick_up_note: pickUpNote || null,
-      special_instructions: specialInstructions || null,
-    });
+      drop_off_note: null,
+      pick_up_note: null,
+      special_instructions: null,
+    };
+
+    let { error } = await supabase.from("bookings").insert(bookingPayload);
+
+    if (
+      error &&
+      /start_time|end_time|estimated_price/i.test(error.message)
+    ) {
+      const fallbackResult = await supabase.from("bookings").insert({
+        household_id: household.id,
+        pet_id: isMeetAndGreetRequest ? petId : petId,
+        service_type: serviceType,
+        start_date: startDate,
+        end_date: endDate,
+        status: "pending",
+        notes: notes || null,
+        drop_off_note: null,
+        pick_up_note: null,
+        special_instructions: null,
+      });
+
+      error = fallbackResult.error;
+    }
 
     setIsSubmitting(false);
 
@@ -332,6 +478,8 @@ export default function PortalRequestBookingPage() {
     setSelectedServiceType(isMeetAndGreetRequest ? "meet-and-greet" : "boarding");
     setSelectedStartDate("");
     setSelectedEndDate("");
+    setSelectedStartTime("");
+    setSelectedEndTime("");
     setExistingBookings((current) => [
       ...current,
       { id: Date.now(), service_type: serviceType },
@@ -380,7 +528,9 @@ export default function PortalRequestBookingPage() {
                 <p className="portal-subcopy">
                   {isMeetAndGreetRequest
                     ? "Meet & greet requests use a single appointment date, do not require a pet profile first, and will appear as upcoming admin tasks without the daily update workflow."
-                    : "Start and end dates now stay linked to the live availability calendar below, so only currently open dates can be selected."}
+                    : isDaycareRequest
+                      ? `Daycare stays use a flat ${formatCurrency(DAYCARE_BASE_RATE)} rate and let you choose one care date with drop-off and pick-up times.`
+                      : `Boarding regular rate is ${formatCurrency(BOARDING_NIGHT_RATE)} per night. Holiday dates may be priced differently. Late pickup adds ${formatCurrency(BOARDING_LATE_PICKUP_HALF_DAY_RATE)} for 2-8 extra hours or ${formatCurrency(BOARDING_LATE_PICKUP_FULL_DAY_RATE)} for more than 8 hours.`}
                 </p>
                 <form className="portal-form" onSubmit={handleRequestBooking}>
                   <div className="field-grid auth-grid">
@@ -433,79 +583,102 @@ export default function PortalRequestBookingPage() {
                     </div>
                     <div className="field field-full">
                       <label htmlFor="requestStartDate">
-                        {isMeetAndGreetRequest ? "Meet & Greet Date" : "Start Date"}
+                        {isMeetAndGreetRequest
+                          ? "Meet & Greet Date"
+                          : isDaycareRequest
+                            ? "Daycare Date"
+                            : "Drop-Off Date"}
                       </label>
-                      <select
+                      <input
+                        type="date"
                         id="requestStartDate"
                         name="requestStartDate"
-                        className="admin-select"
                         value={selectedStartDate}
                         onChange={(event) => setSelectedStartDate(event.target.value)}
+                        min={availabilityWindow.startDate}
+                        max={availabilityWindow.endDate}
                         required
-                      >
-                        <option value="" disabled>
-                          {isMeetAndGreetRequest
-                            ? "Select an available meet & greet date"
-                            : "Select an available start date"}
-                        </option>
-                        {availableStartDates.map((date) => (
-                          <option key={date} value={date}>
-                            {formatBookingDate(date)}
-                          </option>
-                        ))}
-                      </select>
+                      />
+                      <p className="portal-subcopy">
+                        {isBoardingRequest
+                          ? "Choose a drop-off date that has at least one following open night."
+                          : "Choose a date from the calendar picker. We will check it against current availability when you submit."}
+                      </p>
+                      {hasInvalidBoardingStartDate ? (
+                        <p className="portal-subcopy" style={{ color: "#8f5c42" }}>
+                          {formatBookingDate(selectedStartDate)} is open as a day on the calendar, but
+                          it does not have an overnight boarding range after it. Please choose another
+                          drop-off date.
+                        </p>
+                      ) : null}
                     </div>
-                    {!isMeetAndGreetRequest ? (
+                    <div className="field field-full">
+                      <label htmlFor="requestStartTime">
+                        {isMeetAndGreetRequest
+                          ? "Preferred Time"
+                          : isDaycareRequest
+                            ? "Drop-Off Time"
+                            : "Drop-Off Time"}
+                      </label>
+                      <input
+                        type="time"
+                        id="requestStartTime"
+                        name="requestStartTime"
+                        value={selectedStartTime}
+                        onChange={(event) => setSelectedStartTime(event.target.value)}
+                        required
+                      />
+                    </div>
+                    {isBoardingRequest ? (
                       <div className="field field-full">
-                        <label htmlFor="requestEndDate">End Date</label>
-                        <select
+                        <label htmlFor="requestEndDate">Pick-Up Date</label>
+                        <input
+                          type="date"
                           id="requestEndDate"
                           name="requestEndDate"
-                          className="admin-select"
                           value={selectedEndDate}
                           onChange={(event) => setSelectedEndDate(event.target.value)}
+                          min={
+                            selectedStartDate ? getNextDate(selectedStartDate) : availabilityWindow.startDate
+                          }
+                          max={availabilityWindow.endDate}
                           required
-                          disabled={!selectedStartDate || availableEndDates.length === 0}
-                        >
-                          <option value="" disabled>
-                            {selectedStartDate
-                              ? "Select an available end date"
-                              : "Choose a start date first"}
-                          </option>
-                          {availableEndDates.map((date) => (
-                            <option key={date} value={date}>
-                              {formatBookingDate(date)}
-                            </option>
-                          ))}
-                        </select>
+                          disabled={!selectedStartDate}
+                        />
+                        <p className="portal-subcopy">
+                          Pick a boarding end date after drop-off. We will only accept a pick-up date
+                          that stays inside the open overnight range.
+                        </p>
+                      </div>
+                    ) : null}
+                    {!isMeetAndGreetRequest ? (
+                      <div className="field field-full">
+                        <label htmlFor="requestEndTime">
+                          {isDaycareRequest ? "Pick-Up Time" : "Pick-Up Time"}
+                        </label>
+                        <input
+                          type="time"
+                          id="requestEndTime"
+                          name="requestEndTime"
+                          value={selectedEndTime}
+                          onChange={(event) => setSelectedEndTime(event.target.value)}
+                          required
+                        />
                       </div>
                     ) : null}
                     <div className="field field-full">
                       <label htmlFor="requestNotes">
-                        {isMeetAndGreetRequest ? "Meet & Greet Notes" : "Booking Notes"}
-                      </label>
-                      <textarea id="requestNotes" name="requestNotes" rows={4} />
-                    </div>
-                    {!isMeetAndGreetRequest ? (
-                      <>
-                        <div className="field field-full">
-                          <label htmlFor="requestDropOffNote">Drop-Off Note</label>
-                          <textarea id="requestDropOffNote" name="requestDropOffNote" rows={3} />
-                        </div>
-                        <div className="field field-full">
-                          <label htmlFor="requestPickUpNote">Pick-Up Note</label>
-                          <textarea id="requestPickUpNote" name="requestPickUpNote" rows={3} />
-                        </div>
-                      </>
-                    ) : null}
-                    <div className="field field-full">
-                      <label htmlFor="requestSpecialInstructions">
-                        {isMeetAndGreetRequest ? "Questions or Special Notes" : "Special Instructions"}
+                        {isMeetAndGreetRequest ? "Message" : "Message"}
                       </label>
                       <textarea
-                        id="requestSpecialInstructions"
-                        name="requestSpecialInstructions"
+                        id="requestNotes"
+                        name="requestNotes"
                         rows={4}
+                        placeholder={
+                          isMeetAndGreetRequest
+                            ? "Share anything helpful before we meet."
+                            : "Share any timing details, routines, or care notes for this request."
+                        }
                       />
                     </div>
                   </div>
@@ -550,18 +723,51 @@ export default function PortalRequestBookingPage() {
                     ? "We will review your meet and greet request and follow up with you about the next step."
                     : "Once approved, the same booking will show up in your portal with the updated status."}
                 </p>
+                <div className="portal-pricing-estimate">
+                  <span className="portal-action-kicker">Estimated Price</span>
+                  <h3>
+                    {pricingEstimate.estimatedPrice === null
+                      ? "Choose your dates and times first"
+                      : formatCurrency(pricingEstimate.estimatedPrice)}
+                  </h3>
+                  <div className="portal-pricing-lines">
+                    {pricingEstimate.lineItems.length === 0 ? (
+                      <p className="portal-subcopy">
+                        {isBoardingRequest
+                          ? "Boarding estimates appear once drop-off and pick-up details are complete."
+                          : isMeetAndGreetRequest
+                            ? "Meet & Greet requests are complimentary."
+                            : "Daycare uses a flat daily rate."}
+                      </p>
+                    ) : (
+                      pricingEstimate.lineItems.map((lineItem) => (
+                        <div className="portal-pricing-line" key={lineItem.label}>
+                          <span>{lineItem.label}</span>
+                          <strong>{formatCurrency(lineItem.amount)}</strong>
+                        </div>
+                      ))
+                    )}
+                    {isBoardingRequest && pricingEstimate.latePickupTier !== "none" ? (
+                      <p className="portal-subcopy" style={{ marginTop: "8px" }}>
+                        Pick-up is currently {pricingEstimate.latePickupHours.toFixed(1)} hours past
+                        your drop-off time, so the estimate includes a{" "}
+                        {pricingEstimate.latePickupTier === "full-day" ? "full-day" : "half-day"} extension.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
                 <div className="portal-mini-steps">
-                  <span>
-                    {isMeetAndGreetRequest ? "1. Choose a date" : "1. Choose pet and available dates"}
-                  </span>
+                  <span>{isMeetAndGreetRequest ? "1. Choose a date and time" : "1. Choose service, date, and time"}</span>
                   <span>2. Submit request</span>
                   <span>{isMeetAndGreetRequest ? "3. Wait for follow-up" : "3. Wait for approval"}</span>
                 </div>
                 {selectedStartDate ? (
                   <p style={{ marginTop: "18px", color: "#7c4724", fontWeight: 600 }}>
-                    {availableEndDates.length > 0
-                      ? `You can currently book from ${formatBookingDate(selectedStartDate)} through ${formatBookingDate(availableEndDates[availableEndDates.length - 1])} without crossing a blocked date.`
-                      : "That start date no longer has an open booking range."}
+                    {isBoardingRequest
+                      ? availableEndDates.length > 0
+                        ? `You can currently book from ${formatBookingDate(selectedStartDate)} through ${formatBookingDate(availableEndDates[availableEndDates.length - 1])} without crossing a blocked date.`
+                        : `${formatBookingDate(selectedStartDate)} does not currently have an open overnight boarding range. Please choose another drop-off date.`
+                      : `Selected date: ${formatBookingDate(selectedStartDate)} at ${formatTimeLabel(selectedStartTime || null)}.`}
                   </p>
                 ) : null}
               </aside>
